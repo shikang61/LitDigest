@@ -72,11 +72,16 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:7px;
   transition:border-color .12s, transform .12s, box-shadow .12s}
 .card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
+/* A note means you have been through this one. That is worth seeing from across
+   the grid, so the whole card says it rather than a pill among the other pills.
+   After :hover, so a read card keeps its colour while you point at it -- the lift
+   and the shadow are affordance enough. Before .card.growing, so an opened card
+   still takes the accent. */
+.card.noted{border-color:var(--warn);border-width:2px}
 .card h3{margin:0;font-family:var(--read);font-size:18px;line-height:1.38;
   font-weight:600;letter-spacing:-.012em}
 .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
 .tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
-.tag.note{background:var(--warn-soft);color:var(--warn)}
 .tag.must{background:var(--warn-soft);color:var(--warn)}
 .tag.read{background:var(--accent-soft);color:var(--good)}
 .tag.discard{background:transparent;border:1px solid var(--line);color:var(--muted)}
@@ -96,6 +101,9 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .notestate{color:var(--muted);font-size:14px;margin:6px 0 0;min-height:1.2em}
 .dots{letter-spacing:2px;font-size:14px;color:var(--accent)}
 .ghost{color:var(--muted);font-size:13.5px;font-style:italic}
+/* what the brown border says, for anyone not reading the border */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap;border:0}
 
 /* ---- the card growing into a sheet ---- */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;
@@ -423,11 +431,11 @@ function starBtn(p){
 }
 
 function cardHtml(p){
-  return `<article class="card" data-num="${p.num}">
+  return `<article class="card${p.notes ? ' noted' : ''}" data-num="${p.num}">
     <div class="titlerow"><h3>${esc(p.title)}</h3>${starBtn(p)}</div>
     <div class="meta">
       <span class="tag">${esc(p.topic)}</span>
-      ${p.notes ? '<span class="tag note">your note</span>' : ''}
+      ${p.notes ? '<span class="sr">read — you have a note on this</span>' : ''}
       <span>${esc(p.authors)}</span><span>${esc(p.year)}</span>
       ${p.match==='none' ? '<span class="tag discard">not on arXiv</span>' : ''}
     </div>
@@ -868,6 +876,7 @@ async function fillDetail(num, root){
       headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
     if(!res.ok){ saved = null; state.textContent = 'could not write to the spreadsheet'; return; }
     p.notes = text;
+    render();     // the card's border says whether it has a note; no-op while open
     state.textContent = 'written to the spreadsheet';
     setTimeout(() => { if(state.textContent === 'written to the spreadsheet') state.textContent = ''; }, 2200);
   };
