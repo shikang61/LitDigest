@@ -1,4 +1,23 @@
 #!/bin/bash
-# Thin wrapper: the real logic lives in launch.sh next to the project, so it stays readable.
-HERE="$(cd "$(dirname "$0")/../../.." && pwd)"
-exec "$HERE/launch.sh"
+# Finds the project whether this bundle sits inside it or has been moved elsewhere
+# (the Desktop, the Dock, /Applications). Tries its own location first, then the
+# absolute path recorded in Contents/Resources/project-path when it was built.
+BUNDLE="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT="$(cd "$BUNDLE/../.." && pwd)"
+
+if [ ! -x "$PROJECT/launch.sh" ] && [ -s "$BUNDLE/Resources/project-path" ]; then
+  PROJECT="$(cat "$BUNDLE/Resources/project-path")"
+fi
+
+if [ ! -x "$PROJECT/launch.sh" ]; then
+  osascript -e 'display dialog "LitDigest cannot find its project folder.
+
+Expected launch.sh in:
+'"$PROJECT"'
+
+If you moved the project, edit the path inside:
+LitDigest.app → Contents → Resources → project-path" buttons {"OK"} default button 1 with title "LitDigest"' >/dev/null 2>&1
+  exit 1
+fi
+
+exec "$PROJECT/launch.sh"

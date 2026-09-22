@@ -46,8 +46,12 @@ generated yet — that happens when you click.
 ## Launching it
 
 Double-click **LitDigest.app**. It starts the server, waits for it, and opens
-your browser. Closing the app stops the server. Drag it to the Dock if you want
-it to hand.
+your browser. Closing the app stops the server.
+
+The bundle works from anywhere — Desktop, Dock, `/Applications` — because it
+records the project's absolute path in `Contents/Resources/project-path` and
+falls back to its own location. If you move the *project*, edit that one file
+(right-click the app → Show Package Contents).
 
 A double-clicked app gets a bare `PATH`, so the interpreter that has the packages
 is recorded in `.python-path` when you set up. If you move to a different Python,
