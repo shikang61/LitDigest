@@ -9,9 +9,9 @@ APP="$PROJECT/LitDigest.app"
 
 case "$PROJECT" in
   "$HOME"/Desktop/*|"$HOME"/Documents/*|"$HOME"/Downloads/*)
-    echo "warning: macOS will not let a double-clicked app read files under" >&2
-    echo "         Desktop, Documents or Downloads. Move the project elsewhere" >&2
-    echo "         (~/LitDigest works) or the app will do nothing when opened." >&2 ;;
+    echo "note: macOS will not let a double-clicked app read files under Desktop," >&2
+    echo "      Documents or Downloads, so the app will hand off to Terminal and a" >&2
+    echo "      Terminal window will appear. Move the project elsewhere to avoid it." >&2 ;;
 esac
 
 rm -rf "$APP"
@@ -47,18 +47,29 @@ if [ ! -x "$PROJECT/launch.sh" ] && [ -s "$BUNDLE/Resources/project-path" ]; the
   PROJECT="$(cat "$BUNDLE/Resources/project-path")"
 fi
 
-if [ ! -x "$PROJECT/launch.sh" ]; then
-  osascript -e 'display dialog "LitDigest cannot find its project folder.
+# A blocked path still passes -x; it is opening the file that is refused, so the
+# probe has to actually read a byte.
+if head -c 1 "$PROJECT/launch.sh" >/dev/null 2>&1; then
+  mkdir -p "$PROJECT/cache"
+  exec "$PROJECT/launch.sh" >> "$PROJECT/cache/app.log" 2>&1
+fi
+
+# The project is somewhere macOS will not let a double-clicked app read --
+# Desktop, Documents, Downloads. Terminal already has that permission, so hand
+# the job to it rather than failing silently. A Terminal window is the price.
+if osascript >/dev/null 2>&1 \
+     -e 'tell application "Terminal" to do script "clear; \"'"$PROJECT"'/launch.sh\""' \
+     -e 'tell application "Terminal" to activate'; then
+  exit 0
+fi
+
+osascript -e 'display dialog "LitDigest cannot find its project folder.
 
 Expected launch.sh in:
 '"$PROJECT"'
 
 Rebuild the app by running make_app.sh in the project folder." buttons {"OK"} default button 1 with title "LitDigest"' >/dev/null 2>&1
-  exit 1
-fi
-
-mkdir -p "$PROJECT/cache"
-exec "$PROJECT/launch.sh" >> "$PROJECT/cache/app.log" 2>&1
+exit 1
 WRAPPER
 
 chmod +x "$APP/Contents/MacOS/LitDigest"

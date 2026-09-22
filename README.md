@@ -55,14 +55,20 @@ opens your browser. Closing the app stops the server.
 The bundle records the project's absolute path, so **rebuild it after moving the
 project**. The copy itself can live anywhere — Desktop, Dock, `/Applications`.
 
-### Do not keep the project in ~/Desktop, ~/Documents or ~/Downloads
+### If the project lives in ~/Desktop, ~/Documents or ~/Downloads
 
-macOS refuses to let a double-clicked app read anything in those folders, and an
-app with no window never gets the chance to ask for permission, so it fails
-silently — `open` reports success and nothing happens. Running the same launcher
-from a terminal works, because your terminal already has that permission, which
-makes it a confusing thing to debug. `~/LitDigest` is a good home.
-(`cache/app.log` records what the app did on its last launch.)
+macOS will not let a double-clicked app read anything in those folders, and an
+app with no window never gets the chance to ask for permission — left alone it
+fails silently, with `open` reporting success and nothing happening. Running the
+same launcher from a terminal works, because your terminal already holds that
+permission, which makes it a confusing thing to debug.
+
+So the app checks whether it can actually read `launch.sh`, and if it cannot, it
+hands the job to Terminal, which can. Everything works; a Terminal window appears
+alongside the browser and has to stay open while you use the app. Keeping the
+project anywhere else (`~/LitDigest`, say) avoids the window entirely.
+
+`cache/app.log` records what the app did on its last direct launch.
 
 A double-clicked app gets a bare `PATH`, so the interpreter that has the packages
 is recorded in `.python-path` when you set up. If you move to a different Python,
