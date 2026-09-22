@@ -165,6 +165,10 @@ strong{font-weight:600;color:var(--ink)}
   background:var(--bg);color:var(--ink)}
 
 /* ---- progress ---- */
+.job{margin:2px 0 4px}
+.jobtrack{height:4px;background:var(--line);border-radius:3px;overflow:hidden}
+.jobfill{height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .4s linear}
+.jobtext{color:var(--muted);font-size:13px;margin-top:5px;font-variant-numeric:tabular-nums}
 .prog{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg)}
 .prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
   font-size:15px;margin-bottom:9px}
@@ -209,6 +213,7 @@ strong{font-weight:600;color:var(--ink)}
     <label class="sortwrap">Sort
       <select id="sort" title="How to order the cards">
         <option value="sheet">Spreadsheet order</option>
+        <option value="sheetrev">Spreadsheet order, reversed</option>
         <option value="score">Best first</option>
         <option value="starred">Starred first</option>
         <option value="unread">Unread first</option>
@@ -228,7 +233,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 let PAPERS = [], topic = null, starsOnly = false, open = null;
 
 const SORTS = {
-  sheet:   (a, b) => a.num - b.num,
+  sheet:    (a, b) => a.num - b.num,
+  sheetrev: (a, b) => b.num - a.num,
   score:   (a, b) => (b.score || 0) - (a.score || 0) || a.num - b.num,
   starred: (a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0) || a.num - b.num,
   unread:  (a, b) => (a.has_glance ? 1 : 0) - (b.has_glance ? 1 : 0) || a.num - b.num,
@@ -275,6 +281,45 @@ function sections(raw){
 }
 const dots = n => '●'.repeat(n) + '○'.repeat(5-n);
 
+/* ---------- generations still running ----------
+   The fetch keeps streaming after its card is closed, and the server saves the
+   result either way, so a job is tracked by paper number and drawn on the grid
+   card until it finishes. */
+const JOBS = new Map();
+let ticker = null;
+
+function paint(){
+  for(const [num, j] of JOBS){
+    const card = document.querySelector(`.card[data-num="${num}"]`);
+    if(!card) continue;
+    const secs = (Date.now() - j.t0) / 1000;
+    const fill = card.querySelector('.jobfill');
+    const text = card.querySelector('.jobtext');
+    if(fill) fill.style.width = (Math.min(secs / j.expected, 0.95) * 100).toFixed(1) + '%';
+    if(text) text.textContent = `${j.label} · ${Math.round(secs)}s`;
+  }
+}
+
+function jobStart(num, kind){
+  JOBS.set(num, {kind, t0: Date.now(), expected: 180, label: 'starting'});
+  if(!ticker) ticker = setInterval(() => {
+    if(!JOBS.size){ clearInterval(ticker); ticker = null; return; }
+    paint();
+  }, 500);
+}
+
+const jobUpdate = (num, patch) => { const j = JOBS.get(num); if(j) Object.assign(j, patch); };
+
+async function jobEnd(num){
+  JOBS.delete(num);
+  try{
+    const d = await (await fetch(`/api/papers/${num}`)).json();
+    const p = PAPERS.find(x => x.num === num);
+    if(p && d.card) Object.assign(p, d.card);
+  }catch(e){ /* the card keeps what it had */ }
+  render();
+}
+
 /* ---------- progress ---------- */
 function progress(box, label){
   box.innerHTML = `<div class="prog">
@@ -319,6 +364,8 @@ function cardHtml(p){
       ${p.match==='none' ? '<span class="tag discard">not on arXiv</span>' : ''}
     </div>
     ${p.score ? `<div class="dots">${dots(p.score)}</div>` : ''}
+    ${JOBS.has(p.num) ? `<div class="job"><div class="jobtrack"><div class="jobfill"></div></div>
+       <div class="jobtext">working</div></div>` : ''}
     ${p.claim ? `<p class="claim">${esc(p.claim)}</p>`
               : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
   </article>`;
@@ -337,6 +384,7 @@ function render(){
   $('#count').textContent =
     `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
   renderMath($('#grid'));
+  paint();
 }
 
 function buildChips(){
@@ -701,8 +749,9 @@ function showGlance(num, root, s, data){
   root.querySelector('.glance').innerHTML = glanceHtml(s);
   renderMath(root.querySelector('.glance'), data.macros);
 
-  // always reachable, so a digest can be rewritten whenever it reads badly
-  const bar = root.closest('.card').querySelector('.controls');
+  // the card may have been closed while this was generating, which detaches root
+  const bar = root.closest('.card')?.querySelector('.controls');
+  if(!bar) return;
   bar.innerHTML = `<div class="rowbtns">
     <button class="btn ${data.deep ? '' : 'primary'}" data-go="deep"
       title="Mechanism, the central equation, and the figures">${
@@ -736,13 +785,15 @@ function showFigures(wrap, data, used){
 function runGlance(num, root, data){
   const box = root.querySelector('.glance');
   const pr = progress(box, 'starting');
+  jobStart(num, 'glance');
   let raw = '';
   stream(`/api/papers/${num}/glance`, null, {
-    phase: m => pr.phase(m),
+    phase: m => { pr.phase(m); jobUpdate(num, {label: m.phase, expected: m.expected || 180}); },
     think: t => pr.think(t),
-    text: t => { if(!raw) pr.writing(); raw += t; box.innerHTML = glanceHtml(sections(raw)); },
+    text: t => { if(!raw){ pr.writing(); jobUpdate(num, {label: 'writing it up'}); }
+                 raw += t; box.innerHTML = glanceHtml(sections(raw)); },
     done: msg => {
-      pr.stop();
+      pr.stop(); jobEnd(num);
       if(msg.error){ box.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
       const p = PAPERS.find(x=>x.num===num), s = sections(raw);
       p.claim = s.claim || ''; p.score = +s.score || null; p.has_glance = true;
@@ -753,13 +804,15 @@ function runGlance(num, root, data){
 function runDeep(num, root){
   const wrap = root.querySelector('.deepwrap');
   const pr = progress(wrap, 'starting');
+  jobStart(num, 'deep');
   let raw = '';
   stream(`/api/papers/${num}/deep`, null, {
-    phase: m => pr.phase(m),
+    phase: m => { pr.phase(m); jobUpdate(num, {label: m.phase, expected: m.expected || 300}); },
     think: t => pr.think(t),
-    text: t => { if(!raw) pr.writing(); raw += t; wrap.innerHTML = deepHtml(sections(raw)); },
+    text: t => { if(!raw){ pr.writing(); jobUpdate(num, {label: 'writing it up'}); }
+                 raw += t; wrap.innerHTML = deepHtml(sections(raw)); },
     done: async msg => {
-      pr.stop();
+      pr.stop(); jobEnd(num);
       if(msg.error){ wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
       const data = await (await fetch(`/api/papers/${num}`)).json();
       const d = sections(raw), used = new Set();
@@ -778,8 +831,8 @@ function renderQA(num, root, chat){
         `<div class="turn"><p class="q">${esc(t.q)}</p><p class="a">${esc(t.a)}</p></div>`).join('')}</div>`
     : '<div class="turns"></div>';
 
-  const card = root.closest('.card');
-  const bar = card.querySelector('.askbar');
+  const bar = root.closest('.card')?.querySelector('.askbar');
+  if(!bar) return;
   bar.innerHTML = `<div class="askrow">
        <input class="askbox" placeholder="Ask this paper — e.g. does it assume periodic boundaries?">
        <button class="btn primary">Ask</button>

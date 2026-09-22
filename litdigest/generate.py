@@ -27,6 +27,10 @@ Rules:
 - Write the way a knowledgeable colleague talks: continuous prose, complete
   sentences that follow from one another, ordinary connectives (so, but, because,
   which means) where they carry the argument. Vary the sentence length.
+- Active voice. Say what the scheme, the estimator, the proof or the paper does:
+  "the rewrite absorbs the non-conservative flux", not "the non-conservative flux
+  is absorbed". Passive is allowed only where the actor genuinely does not matter,
+  or where naming it would be a guess.
 - Give each section as bullet points, one per line, each starting with "- ".
   A bullet is a proper sentence or two, not a fragment: it should read aloud.
 - Build every bullet the same way, point first:
