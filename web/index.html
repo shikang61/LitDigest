@@ -44,24 +44,30 @@ a{color:var(--accent)}
   border-bottom:1px solid var(--line);padding:14px 20px 10px}
 .bar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .brand{font-weight:700;font-size:21px;letter-spacing:-.015em;margin-right:6px}
-.brand small{color:var(--muted);font-weight:400;font-size:14.5px;margin-left:9px}
+.brand small{color:var(--ink);font-weight:400;font-size:14.5px;margin-left:9px}
 input[type=search]{flex:1;min-width:220px;padding:11px 14px;font-size:17px;color:var(--ink);
   background:var(--card);border:1px solid var(--line);border-radius:9px}
+input[type=search]::placeholder{color:var(--muted)}
 input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .btn{background:var(--card);border:1px solid var(--line);color:var(--ink);
   padding:10px 14px;font-size:16.5px;border-radius:9px}
 .btn:hover{border-color:var(--accent)}
 .meta-row{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:9px}
-.sortwrap{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:15px;white-space:nowrap}
+.sortwrap{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:15px;white-space:nowrap}
 .sortwrap select{font:inherit;font-size:15px;color:var(--ink);background:var(--card);
   border:1px solid var(--line);border-radius:8px;padding:5px 8px;cursor:pointer}
 .sortwrap select:hover{border-color:var(--accent)}
+.rightctl{display:flex;align-items:center;gap:14px}
+.viewtog{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.viewtog button{background:var(--card);border:none;color:var(--ink);font-size:15px;padding:5px 11px}
+.viewtog button+button{border-left:1px solid var(--line)}
+.viewtog button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
-.chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);
   padding:6px 13px;border-radius:999px;font-size:15px}
 .chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
-.count{color:var(--muted);font-size:15px}
+.count{color:var(--ink);font-size:15px}
 .warnbar{margin-top:9px;padding:9px 13px;border-radius:9px;font-size:15px;
   background:var(--warn-soft);color:var(--warn);border:1px solid currentColor}
 
@@ -72,6 +78,15 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:7px;
   transition:border-color .12s, transform .12s, box-shadow .12s}
 .card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
+/* List view: one row per paper. :not(.growing), because an opened card is still
+   inside the grid and must take its sheet layout, not the row's. */
+.grid.list{grid-template-columns:1fr;gap:6px}
+.grid.list .card:not(.growing){flex-direction:row;align-items:center;gap:14px;padding:9px 16px}
+.grid.list .card:not(.growing) .titlerow{flex:1;min-width:0;align-items:center}
+.grid.list .card:not(.growing) h3{font-size:16px;font-weight:400}
+.grid.list .card:not(.growing) .meta{flex-wrap:nowrap;white-space:nowrap}
+.grid.list .card:not(.growing) .job{width:140px;margin:0}
+.grid.list .card:not(.growing) .ghost{display:none}
 /* A note means you have been through this one. That is worth seeing from across
    the grid, so the whole card says it rather than a pill among the other pills.
    After :hover, so a read card keeps its colour while you point at it -- the lift
@@ -82,6 +97,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   font-weight:600;letter-spacing:-.012em}
 .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
 .tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.card:not(.growing) .tag{font-size:13.5px;padding:3px 11px}
 .tag.must{background:var(--warn-soft);color:var(--warn)}
 .tag.read{background:var(--accent-soft);color:var(--good)}
 .tag.discard{background:transparent;border:1px solid var(--line);color:var(--muted)}
@@ -220,6 +236,8 @@ strong{font-weight:600;color:var(--ink)}
   .card.growing .controls{margin:8px 0 4px}
   .card.growing h3{font-size:24px}
   .card.growing .titlerow{padding-right:106px}
+  .grid.list .card:not(.growing){flex-wrap:wrap;gap:6px 14px}
+  .grid.list .card:not(.growing) .titlerow{flex-basis:100%}
 }
 </style>
 </head>
@@ -235,6 +253,10 @@ strong{font-weight:600;color:var(--ink)}
   <div class="chips" id="chips"></div>
   <div class="meta-row">
     <div class="count" id="count"></div>
+    <div class="rightctl">
+    <div class="viewtog" id="viewtog" role="group" aria-label="View">
+      <button data-view="cards">Cards</button><button data-view="list">List</button>
+    </div>
     <label class="sortwrap">Sort
       <select id="sort" title="How to order the cards">
         <option value="sheet">Spreadsheet order</option>
@@ -246,6 +268,7 @@ strong{font-weight:600;color:var(--ink)}
         <option value="title">Title A–Z</option>
       </select>
     </label>
+    </div>
   </div>
 </div>
 
@@ -1042,6 +1065,21 @@ $('#q').addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 180);
 });
+let viewMode = 'cards';
+try{ viewMode = localStorage.getItem('litdigest.view') === 'list' ? 'list' : 'cards'; }catch(e){}
+function applyView(){
+  $('#grid').classList.toggle('list', viewMode === 'list');
+  $('#viewtog').querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-pressed', b.dataset.view === viewMode));
+}
+applyView();
+$('#viewtog').onclick = e => {
+  const b = e.target.closest('button[data-view]');
+  if(!b || open !== null) return;
+  viewMode = b.dataset.view;
+  try{ localStorage.setItem('litdigest.view', viewMode); }catch(err){}
+  applyView();
+};
 $('#sort').value = sortBy;
 $('#sort').onchange = e => {
   sortBy = e.target.value;
