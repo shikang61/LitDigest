@@ -17,6 +17,12 @@ Rules:
 - Quote the paper's own numbers.
 - Never write filler like "this paper explores", "the authors investigate", "sheds light on".
 - Never pad a weak paper. If it is incremental, say so.
+- Write every piece of mathematics as LaTeX between single dollar signs:
+  $C(|h| + \sigma)^{3/2}$, $\partial_t u$, $O(h^4)$. Use LaTeX commands, not
+  unicode symbols, inside them. Never leave a bare exponent, subscript or Greek
+  letter outside dollars. Where words are clearer than symbols, use words.
+- Outside the dollars you are writing prose, not LaTeX: a dash is "-", never "--",
+  and names are written plainly (Hamilton-Jacobi, not Hamilton--Jacobi).
 - Be short. No sentence over 25 words. Cut every clause that is not load-bearing.
   One idea per sentence. No subordinate clauses stacked on qualifiers.
 - Stay inside the length given for each section. Shorter is better than longer.
