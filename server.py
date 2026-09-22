@@ -93,16 +93,28 @@ def index():
     return FileResponse(WEB / "index.html")
 
 
+def _code_mtime() -> float:
+    return max(p.stat().st_mtime
+               for p in [Path(__file__), *Path(__file__).parent.glob("litdigest/*.py")])
+
+
+# Python reads each module once, at start, so a server that has been up since
+# before the code last changed is still running the old code -- a fix saved to
+# disk does nothing until it restarts. The launcher asks, and restarts it.
+STARTED_CODE = _code_mtime()
+
+
 @app.get("/api/health")
 def health():
-    """Liveness only, for the launcher waiting on the server to come up.
+    """Liveness, for the launcher waiting on the server to come up, and whether
+    the code on disk has changed since this server started.
 
     It must stay cheap: /api/papers re-reads the spreadsheet and, on a fresh
     library, files every new paper under a cluster, which is a run of model calls.
     Polling that twice a second while the server starts is how you end up with
     several of those running at once.
     """
-    return {"ok": True}
+    return {"ok": True, "stale": _code_mtime() > STARTED_CODE}
 
 
 @app.get("/api/papers")

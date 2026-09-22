@@ -60,6 +60,17 @@ if ! alive && curl -fsS -m 20 "$URL/api/papers" >/dev/null 2>&1; then
   done
 fi
 
+# A server up since before the code on disk last changed is still running the old
+# code, so a fix never reached the app until something restarted it by hand.
+if curl -fsS -m 3 "$URL/api/health" 2>/dev/null | grep -q '"stale":true'; then
+  echo "restarting a server started before the code last changed" >> cache/launch.log
+  curl -fsS -m 5 -X POST "$URL/api/quit" >/dev/null 2>&1
+  for _ in $(seq 1 20); do
+    alive || break
+    sleep 0.5
+  done
+fi
+
 # already running, and current? just bring it up
 if alive; then
   open "$URL"; exit 0

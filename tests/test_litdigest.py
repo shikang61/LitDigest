@@ -246,9 +246,19 @@ def test_health_answers_without_reading_the_spreadsheet(monkeypatch):
 
     with TestClient(server.app) as client:
         r = client.get("/api/health")
-        assert r.status_code == 200 and r.json() == {"ok": True}
+        assert r.status_code == 200 and r.json() == {"ok": True, "stale": False}
         with pytest.raises(AssertionError):
             client.get("/api/papers")          # the expensive one, for contrast
+
+
+def test_health_says_when_the_code_changed_after_start(monkeypatch):
+    """A server started before a fix was saved keeps running the old code, and the
+    launcher used to hand over to it. This is how it knows to restart instead."""
+    from starlette.testclient import TestClient
+    import server
+    monkeypatch.setattr(server, "STARTED_CODE", 0.0)
+    with TestClient(server.app) as client:
+        assert client.get("/api/health").json()["stale"] is True
 
 
 def test_a_note_saved_during_deep_prep_survives(tmp_path, monkeypatch):
