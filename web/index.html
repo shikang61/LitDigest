@@ -111,7 +111,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   color:var(--muted);font-size:26px;line-height:1;padding:0 4px;z-index:2}
 .close:hover{color:var(--ink)}
 .detail{opacity:0;transition:opacity .2s ease .12s;min-height:0}
-.card.open .detail{overflow-y:auto;flex:1;padding-right:6px;padding-bottom:26px}
+.card.open .detail{overflow-y:auto;flex:1;padding-right:6px;padding-bottom:6px}
 .card.open .detail{opacity:1}
 
 /* ---- detail contents ---- */
@@ -148,7 +148,9 @@ strong{font-weight:600;color:var(--ink)}
 .qa .turn{margin-bottom:14px}
 .qa .q{font-weight:600;margin:0 0 4px}
 .qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:17.5px;line-height:1.62}
-.askrow{display:flex;gap:8px;margin-top:10px;margin-bottom:4px}
+.askbar{flex:0 0 auto;border-top:1px solid var(--line);padding-top:13px;margin-top:12px;
+  background:var(--card)}
+.askrow{display:flex;gap:8px}
 .askrow input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);color:var(--ink)}
 
@@ -402,8 +404,7 @@ function collapse(){
   const r = ph ? ph.getBoundingClientRect() : card.getBoundingClientRect();
   card.classList.remove('open');
   card.scrollTop = 0;
-  const detail = card.querySelector('.detail');
-  if(detail) detail.remove();
+  card.querySelectorAll('.detail, .askbar').forEach(el => el.remove());
   const close = card.querySelector('.close');
   if(close) close.remove();
   Object.assign(card.style, {top:r.top+'px', left:r.left+'px',
@@ -434,6 +435,11 @@ function openCard(num){
   const detail = document.createElement('div');
   detail.className = 'detail';
   card.appendChild(detail);
+
+  // sits below the scrolling area, so a question can be typed at any point
+  const askbar = document.createElement('div');
+  askbar.className = 'askbar';
+  card.appendChild(askbar);
 
   expand(card);
   fillDetail(num, detail);
@@ -741,29 +747,37 @@ function runDeep(num, root){
 
 function renderQA(num, root, chat){
   const qa = root.querySelector('.qa');
-  qa.innerHTML = `<h4>Ask this paper</h4>
-     <div class="turns">${chat.map(t =>
-       `<div class="turn"><p class="q">${esc(t.q)}</p><p class="a">${esc(t.a)}</p></div>`).join('')}</div>
-     <div class="askrow">
-       <input class="askbox" placeholder="e.g. does this assume periodic boundaries?">
+  qa.innerHTML = chat.length
+    ? `<h4>Your questions</h4><div class="turns">${chat.map(t =>
+        `<div class="turn"><p class="q">${esc(t.q)}</p><p class="a">${esc(t.a)}</p></div>`).join('')}</div>`
+    : '<div class="turns"></div>';
+
+  const card = root.closest('.card');
+  const bar = card.querySelector('.askbar');
+  bar.innerHTML = `<div class="askrow">
+       <input class="askbox" placeholder="Ask this paper — e.g. does it assume periodic boundaries?">
        <button class="btn primary">Ask</button>
      </div>`;
-  const box = qa.querySelector('.askbox');
+  const box = bar.querySelector('.askbox');
   const send = () => {
     const q = box.value.trim(); if(!q) return;
     box.value = '';
+    if(!qa.querySelector('h4'))
+      qa.insertAdjacentHTML('afterbegin', '<h4>Your questions</h4>');
     const div = document.createElement('div');
     div.className = 'turn';
     div.innerHTML = `<p class="q">${esc(q)}</p><p class="a spin"></p>`;
     qa.querySelector('.turns').appendChild(div);
     const a = div.querySelector('.a');
+    const stick = () => { root.scrollTop = root.scrollHeight; };   // follow the answer
+    stick();
     let raw = '';
     stream(`/api/papers/${num}/ask`, {question:q}, {
       think: t => { if(!raw) a.textContent = ('thinking: ' + t).slice(0,160); },
       text: t => { raw += t; a.classList.remove('spin'); a.textContent = raw; },
       done: msg => { if(msg.error) a.innerHTML = `<span class="err">${esc(msg.error)}</span>`; }});
   };
-  qa.querySelector('.btn').onclick = send;
+  bar.querySelector('.btn').onclick = send;
   box.addEventListener('keydown', e => { if(e.key==='Enter') send(); });
 }
 
