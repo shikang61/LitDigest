@@ -11,6 +11,13 @@ It does not write summaries. A summary tells you what is in a paper; it does not
 tell you whether to read it. Each card opens with a claim, a 1–5 score, and a
 verdict that names the one section worth ten minutes if the answer is no.
 
+Every bullet is built the same way, so you can skim the first clause of each and
+stop there: the point outright, then what makes it true — an equation, a
+mechanism, an estimate — then where it shows, which for a deep read means the
+figure, named by number so it can be placed beside the bullet that cites it. The
+words a point turns on are marked, and the maths is typeset from the paper's own
+LaTeX.
+
 ## Setup
 
 ```bash

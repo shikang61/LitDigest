@@ -29,6 +29,15 @@ Rules:
   which means) where they carry the argument. Vary the sentence length.
 - Give each section as bullet points, one per line, each starting with "- ".
   A bullet is a proper sentence or two, not a fragment: it should read aloud.
+- Build every bullet the same way, point first:
+    1. The point. State it outright in the opening clause. Never lead with setup,
+       context or "the authors"; never make the reader wait for the verb.
+    2. Why it holds. The equation, the mechanism, the estimate, the argument --
+       whatever makes the point true rather than merely asserted.
+    3. Where it shows. The concrete instance: the figure, the test case, the
+       experiment, the number. Name the figure by number when there is one.
+  Not every bullet earns all three, but they never come in another order, and a
+  bullet that is only the point with nothing behind it should be cut.
 - In each bullet mark the two or three words that carry the point by wrapping them
   in **double asterisks** -- the name of the method, the number that settles it,
   the word the claim turns on. Never mark a whole clause, and never mark more than
@@ -47,7 +56,8 @@ Two bullets. The first: whether to read it, and why. The second: what to look at
 name the section, theorem or figure -- if they only give it ten minutes.
 [TRICK]
 Two or three bullets: the mechanism that makes it work, told well enough that they could
-re-derive the result. Not a restatement of the abstract.
+re-derive the result. Not a restatement of the abstract. Each bullet leads with what the
+step achieves, then how it achieves it.
 [HOLDS UP]
 One sentence: the weakest assumption, or the thing left untested."""
 
@@ -59,9 +69,10 @@ DEEP_FMT = r"""[SETUP]
 Two bullets: the standard result this paper departs from, and why it is not enough here.
 [MECHANISM]
 Four to six bullets: how the method works, where the difficulty is, and how they get past
-it, in order. Specific about the mathematics, and each bullet readable on its own.
-Where a point is what a figure shows, say so by number -- "Figure 3" -- so the figure can
-be put beside it.
+it, in order. Each bullet states what that step accomplishes, then the mathematics that
+does it, then -- where the paper shows it -- the figure or test case that demonstrates it,
+named by number ("Figure 3") so the figure can be placed beside the bullet. Be specific
+about the mathematics, and keep each bullet readable on its own.
 [EQUATION]
 The single central equation, as LaTeX only -- no $ delimiters, no \begin{equation} wrapper,
 no \label. If the source equations are supplied below, copy the relevant one verbatim,
@@ -71,7 +82,8 @@ One symbol per line, formatted `\\(symbol\\) -- what it denotes`, with the symbo
 same \\( \\) delimiters as everywhere else. Only symbols that appear in the equation above.
 [LIMITS]
 Two or three bullets: the assumptions doing the heavy lifting, and what went untested.
-Name the figure by number where one is the evidence.
+Each one names the limitation first, then why it bites, then the place it would show --
+the figure, the regime, the case they never ran. Name figures by number.
 [USE]
 Two bullets: how this researcher would apply or extend it, concretely."""
 
