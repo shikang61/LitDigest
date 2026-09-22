@@ -24,9 +24,13 @@ Rules:
   dollar sign means money. Where words are clearer than symbols, use words.
 - Outside the dollars you are writing prose, not LaTeX: a dash is "-", never "--",
   and names are written plainly (Hamilton-Jacobi, not Hamilton--Jacobi).
-- Be short. No sentence over 25 words. Cut every clause that is not load-bearing.
-  One idea per sentence. No subordinate clauses stacked on qualifiers.
-- Stay inside the length given for each section. Shorter is better than longer.
+- Write the way a knowledgeable colleague talks: continuous prose, complete
+  sentences that follow from one another, ordinary connectives (so, but, because,
+  which means) where they carry the argument. Vary the sentence length.
+- Do not write in clipped fragments, and do not stack one bare assertion per line.
+  Each section is a short paragraph, not a list of statements.
+- Stay brief and concrete, but never at the cost of sounding like a machine. If a
+  sentence reads like a telegram, write it out properly instead.
 - Output ONLY the tagged sections below, in order, nothing before or after. No markdown."""
 
 GLANCE_FMT = """[CLAIM]
@@ -35,23 +39,23 @@ A claim, not a topic.
 [SCORE]
 A single integer 1-5. 5 = drop everything and read it. 1 = skip, nothing here for you.
 [VERDICT]
-Two sentences. First: read it or not, and why. Second: what to read (name the section,
-theorem or figure) if they give it ten minutes.
+A couple of sentences: whether to read it and why, and what to look at first -- name the
+section, theorem or figure -- if they only give it ten minutes.
 [TRICK]
-Two or three sentences, 60 words or fewer: the mechanism that makes it work. The idea needed
-to re-derive the result. Not a restatement of the abstract.
+A short paragraph, two or three sentences: the mechanism that makes it work, told well
+enough that they could re-derive the result. Not a restatement of the abstract.
 [HOLDS UP]
-One sentence: the weakest assumption or the thing left untested."""
+One sentence: the weakest assumption, or the thing left untested."""
 
 DEEP_SYS = GLANCE_SYS.replace(
     "tells them straight whether it is worth an evening",
     "explains how it actually works, at the level of someone who will implement it")
 
 DEEP_FMT = r"""[SETUP]
-Two sentences: the standard result this paper departs from.
+Two sentences: the standard result this paper departs from, and why it is not enough here.
 [MECHANISM]
-Four to six sentences: how the method works, step by step. Where the difficulty is and how
-they get past it. Specific about the mathematics, still short.
+A paragraph of four to six sentences: how the method works, where the difficulty is, and how
+they get past it. Specific about the mathematics, and still readable straight through.
 [EQUATION]
 The single central equation, as LaTeX only -- no $ delimiters, no \begin{equation} wrapper,
 no \label. If the source equations are supplied below, copy the relevant one verbatim,
@@ -59,7 +63,7 @@ preserving the author's macros. If none is supplied, write nothing after this ta
 [TERMS]
 One symbol per line, formatted `symbol -- what it denotes`. Only symbols in the equation above.
 [LIMITS]
-Two or three sentences: the assumptions doing heavy lifting, and what was not tested.
+Two or three sentences: the assumptions doing the heavy lifting, and what went untested.
 [USE]
 Two sentences: how this researcher would apply or extend it, concretely."""
 

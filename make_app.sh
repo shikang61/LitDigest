@@ -57,8 +57,11 @@ fi
 # The project is somewhere macOS will not let a double-clicked app read --
 # Desktop, Documents, Downloads. Terminal already has that permission, so hand
 # the job to it rather than failing silently. A Terminal window is the price.
+# Terminal has the permission this app lacks. terminal-launch.sh starts the
+# server detached and closes its own window, so nothing lingers.
+TITLE="LitDigest $$"
 if osascript >/dev/null 2>&1 \
-     -e 'tell application "Terminal" to do script "clear; \"'"$PROJECT"'/launch.sh\""' \
+     -e 'tell application "Terminal" to do script "\"'"$PROJECT"'/terminal-launch.sh\" \"'"$TITLE"'\"; exit 0"' \
      -e 'tell application "Terminal" to activate'; then
   exit 0
 fi

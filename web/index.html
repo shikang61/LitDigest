@@ -97,7 +97,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
              width .34s var(--ease),height .34s var(--ease),
              padding .34s var(--ease),box-shadow .34s var(--ease)}
 .card.growing:hover{transform:none}
-.card.growing h3{font-size:27px;line-height:1.28;letter-spacing:-.018em;
+.card.growing h3{font-size:30px;line-height:1.24;letter-spacing:-.018em;
   transition:font-size .34s var(--ease)}
 .card.growing .claim{display:none}
 .card.open{padding:26px 30px 30px}
@@ -106,13 +106,16 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   color:var(--muted);font-size:26px;line-height:1;padding:0 4px;z-index:2}
 .close:hover{color:var(--ink)}
 .detail{opacity:0;transition:opacity .2s ease .12s;min-height:0}
-.card.open .detail{overflow-y:auto;flex:1;padding-right:4px}
+.card.open .detail{overflow-y:auto;flex:1;padding-right:6px;padding-bottom:26px}
 .card.open .detail{opacity:1}
 
 /* ---- detail contents ---- */
 section.blk{margin-bottom:18px}
-section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:12.5px;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--muted);font-weight:600}
+section.blk h4{margin:0 0 9px;font-family:var(--ui);font-size:14px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent);font-weight:700;
+  display:flex;align-items:center;gap:10px}
+section.blk h4::after{content:"";flex:1;height:1px;background:var(--line)}
+section.blk{margin-bottom:24px}
 section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18px;line-height:1.65}
 #claim p{font-size:23px;line-height:1.45;font-weight:600;letter-spacing:-.012em}
 .rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
@@ -125,15 +128,16 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
 .figs{display:grid;gap:12px}
 .figs figure{margin:0}
 .figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
-.figs figcaption{color:var(--muted);font-size:14px;margin-top:5px}
+.figs figcaption{color:var(--muted);font-size:16px;line-height:1.5;margin-top:8px}
 .terms li{font-family:var(--read)}
 .brand{font-family:var(--ui);font-weight:600}
 .qa{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
-.qa h4{margin:0 0 10px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.qa h4{margin:0 0 10px;font-family:var(--ui);font-size:14px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent);font-weight:700}
 .qa .turn{margin-bottom:14px}
 .qa .q{font-weight:600;margin:0 0 4px}
 .qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:17.5px;line-height:1.62}
-.askrow{display:flex;gap:8px;margin-top:10px}
+.askrow{display:flex;gap:8px;margin-top:10px;margin-bottom:4px}
 .askrow input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);color:var(--ink)}
 
@@ -162,7 +166,7 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
   .grid{padding:14px 16px 60px}
   .bar{padding:12px 16px 8px}
   .card.open{padding:20px 18px 28px}
-  .card.growing h3{font-size:23px}
+  .card.growing h3{font-size:24px}
 }
 </style>
 </head>
@@ -173,6 +177,7 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
     <span class="brand">LitDigest<small id="src"></small></span>
     <input type="search" id="q" placeholder="Search title, claim, author, note…" autocomplete="off">
     <button class="btn" id="reload" title="Re-read the spreadsheet">Reload sheet</button>
+    <button class="btn" id="quit" title="Stop the LitDigest server">Quit</button>
   </div>
   <div class="chips" id="chips"></div>
   <div class="count" id="count"></div>
@@ -279,8 +284,7 @@ function render(){
     (!starsOnly || p.starred) &&
     (!needle || needle.split(/\s+/).every(w =>
       (p.title+' '+p.authors+' '+p.topic+' '+p.claim+' '+p.notes).toLowerCase().includes(w))));
-  hits.sort((a,b) => (b.starred?1:0)-(a.starred?1:0)
-                  || (b.score||0)-(a.score||0) || a.num-b.num);
+  hits.sort((a,b) => a.num - b.num);        // the order they are in the spreadsheet
   $('#grid').innerHTML = hits.map(cardHtml).join('');
   $('#count').textContent =
     `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
@@ -330,7 +334,7 @@ function after(el, fn){
 }
 
 function targetRect(){
-  const w = Math.min(1080, innerWidth - 40);
+  const w = Math.min(1240, innerWidth - 40);
   const h = Math.min(innerHeight - 56, 900);
   return {left:(innerWidth - w)/2, top:(innerHeight - h)/2, width:w, height:h};
 }
@@ -401,25 +405,30 @@ function openCard(num){
 }
 
 /* ---------- detail ---------- */
+/* The model puts each sentence on its own line out of habit, and pre-wrap would
+   show every one of those as a break. These sections are paragraphs, so any
+   newline inside one is an artifact. */
+const prose = t => String(t || '').replace(/\s*\n+\s*/g, ' ').trim();
+
 function glanceHtml(s){
   return `
-  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(s.claim||'')}</p></section>
+  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(prose(s.claim||''))}</p></section>
   <section class="blk"><h4>Worth it</h4>
     <div class="dots">${s.score ? dots(+s.score) : ''}</div>
-    <p>${esc(s.verdict||'')}</p></section>
-  <section class="blk"><h4>The trick</h4><p>${esc(s.trick||'')}</p></section>
-  <section class="blk"><h4>Holds up?</h4><p>${esc(s.holds_up||'')}</p></section>`;
+    <p>${esc(prose(s.verdict||''))}</p></section>
+  <section class="blk"><h4>The trick</h4><p>${esc(prose(s.trick||''))}</p></section>
+  <section class="blk"><h4>Holds up?</h4><p>${esc(prose(s.holds_up||''))}</p></section>`;
 }
 function deepHtml(s){
   const terms = (s.terms||'').split('\n').filter(Boolean)
     .map(t => `<li>${esc(t.replace(/^[-*]\s*/,''))}</li>`).join('');
   return `
-  <section class="blk"><h4>What you already know</h4><p>${esc(s.setup||'')}</p></section>
-  <section class="blk"><h4>Mechanism</h4><p>${esc(s.mechanism||'')}</p></section>
+  <section class="blk"><h4>What you already know</h4><p>${esc(prose(s.setup||''))}</p></section>
+  <section class="blk"><h4>Mechanism</h4><p>${esc(prose(s.mechanism||''))}</p></section>
   ${s.equation ? `<section class="blk"><h4>Central equation</h4>
      <div class="eq"></div>${terms ? `<ul class="terms">${terms}</ul>`:''}</section>` : ''}
-  <section class="blk"><h4>Limits</h4><p>${esc(s.limits||'')}</p></section>
-  <section class="blk"><h4>How you'd use it</h4><p>${esc(s.use||'')}</p></section>`;
+  <section class="blk"><h4>Limits</h4><p>${esc(prose(s.limits||''))}</p></section>
+  <section class="blk"><h4>How you'd use it</h4><p>${esc(prose(s.use||''))}</p></section>`;
 }
 /* Maths inside prose. The model is asked for $...$, but digests written before
    that instruction have bare fragments like C(|h|+x)^{3/2}, so a token carrying
@@ -658,6 +667,14 @@ $('#q').addEventListener('input', () => {
   searchTimer = setTimeout(render, 180);
 });
 $('#reload').onclick = () => boot();
+$('#quit').onclick = async () => {
+  if(!confirm('Stop LitDigest? The page will stop working until you open the app again.')) return;
+  try{ await fetch('/api/quit', {method:'POST'}); }catch(e){}
+  document.body.innerHTML =
+    '<div style="max-width:520px;margin:22vh auto;text-align:center;color:var(--muted)">'
+    + '<h1 style="color:var(--ink);font-size:22px;margin:0 0 8px">LitDigest stopped</h1>'
+    + '<p>Open LitDigest.app again to pick up where you left off.</p></div>';
+};
 async function boot(){
   const d = await (await fetch('/api/papers')).json();
   PAPERS = d.papers;

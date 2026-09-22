@@ -4,6 +4,12 @@
 set -u
 cd "$(dirname "$0")"
 
+# --detach: start the server in the background and return, so the window that
+# ran this can close. Without it the server runs in the foreground and closing
+# that window stops it.
+DETACH=0
+[ "${1:-}" = "--detach" ] && DETACH=1
+
 # Finder launches an app with only /usr/bin:/bin:/usr/sbin:/sbin, which has
 # neither Homebrew's pdftotext nor a conda python.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:$PATH"
@@ -39,15 +45,22 @@ if curl -fsS "$URL/api/papers" >/dev/null 2>&1; then
 fi
 
 mkdir -p cache
-"$PY" -m uvicorn server:app --host 127.0.0.1 --port "$PORT" >> cache/server.log 2>&1 &
-SERVER=$!
-trap 'kill $SERVER 2>/dev/null' EXIT INT TERM
+if [ "$DETACH" = "1" ]; then
+  nohup "$PY" -m uvicorn server:app --host 127.0.0.1 --port "$PORT" >> cache/server.log 2>&1 &
+  SERVER=$!
+  disown $SERVER 2>/dev/null || true
+else
+  "$PY" -m uvicorn server:app --host 127.0.0.1 --port "$PORT" >> cache/server.log 2>&1 &
+  SERVER=$!
+  trap 'kill $SERVER 2>/dev/null' EXIT INT TERM
+fi
 
-for _ in $(seq 1 40); do
+for _ in $(seq 1 60); do
   curl -fsS "$URL/api/papers" >/dev/null 2>&1 && break
   kill -0 $SERVER 2>/dev/null || { say "The server failed to start.\n\nLast lines of cache/server.log:\n\n$(tail -6 cache/server.log)"; exit 1; }
   sleep 0.5
 done
 
 open "$URL"
+[ "$DETACH" = "1" ] && exit 0
 wait $SERVER

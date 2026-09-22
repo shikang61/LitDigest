@@ -218,6 +218,17 @@ def star(num: int, starred: bool = Body(..., embed=True)):
     return {"num": num, "starred": starred}
 
 
+@app.post("/api/quit")
+def quit_server():
+    """Stop the server. The app detaches it, so there is no window to close."""
+    import os
+    import signal
+    import threading
+
+    threading.Timer(0.3, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+    return {"stopping": True}
+
+
 @app.get("/api/taxonomy")
 def taxonomy():
     return {"clusters": llm.taxonomy()}
