@@ -45,13 +45,24 @@ generated yet — that happens when you click.
 
 ## Launching it
 
-Double-click **LitDigest.app**. It starts the server, waits for it, and opens
-your browser. Closing the app stops the server.
+```bash
+./make_app.sh ~/Desktop      # build the app, and drop a copy on the Desktop
+```
 
-The bundle works from anywhere — Desktop, Dock, `/Applications` — because it
-records the project's absolute path in `Contents/Resources/project-path` and
-falls back to its own location. If you move the *project*, edit that one file
-(right-click the app → Show Package Contents).
+Then double-click **LitDigest.app**. It starts the server, waits for it, and
+opens your browser. Closing the app stops the server.
+
+The bundle records the project's absolute path, so **rebuild it after moving the
+project**. The copy itself can live anywhere — Desktop, Dock, `/Applications`.
+
+### Do not keep the project in ~/Desktop, ~/Documents or ~/Downloads
+
+macOS refuses to let a double-clicked app read anything in those folders, and an
+app with no window never gets the chance to ask for permission, so it fails
+silently — `open` reports success and nothing happens. Running the same launcher
+from a terminal works, because your terminal already has that permission, which
+makes it a confusing thing to debug. `~/LitDigest` is a good home.
+(`cache/app.log` records what the app did on its last launch.)
 
 A double-clicked app gets a bare `PATH`, so the interpreter that has the packages
 is recorded in `.python-path` when you set up. If you move to a different Python,
@@ -167,7 +178,8 @@ litdigest/figures.py   PDF -> cropped figure images
 litdigest/generate.py  the glance / deep / ask prompts, streamed
 litdigest/llm.py       xAI client, clustering
 launch.sh              starts the server and opens the browser
-LitDigest.app          double-clickable wrapper around launch.sh
+make_app.sh            builds LitDigest.app for wherever the project lives
+assets/icon.icns       the app icon
 tests/                 offline tests for the matcher, parser and spreadsheet code
 ```
 
