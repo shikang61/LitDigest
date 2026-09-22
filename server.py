@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """LitDigest app: reads the spreadsheet, serves the card grid, generates on click."""
 import json
+import threading
 import time
 import datetime as dt
 from pathlib import Path
@@ -46,34 +47,64 @@ def _card(rec: dict) -> dict:
         "score": g.get("score"),
         "has_glance": bool(g),
         "has_deep": bool(rec.get("deep")),
+        "running": [k for n, k in list(RUNS) if n == rec["num"]],
     }
 
 
-def _events(make_parts, num: int, key: str, prep=None):
-    """Relay one generation to the browser as SSE, then persist it.
+class _Run:
+    """One generation. It runs on its own thread, so it finishes and is saved whether
+    or not a browser is still reading it: a deep read takes five minutes or more,
+    and closing the tab, reloading or quitting the page used to throw it away.
 
-    Three kinds of event reach the client: {"phase": ...} for the setup work,
-    {"think": text} while the model reasons, {"t": text} as it writes the answer.
+    The browser's stream only follows it. A second request for the same paper and
+    kind -- the card reopened, the page reloaded -- follows the same run from the
+    start instead of paying for a second reading.
     """
-    def gen():
-        t0 = time.time()
-        try:
-            if prep is not None:
-                yield f"data: {json.dumps({'phase': 'fetching the paper'})}\n\n"
-                prep()
-            rec = store.load(num)
-            yield f"data: {json.dumps({'phase': 'reading', 'expected': generate.expected_seconds(key)})}\n\n"
+    def __init__(self):
+        self.events, self.over = [], False
+        self.cond = threading.Condition()
 
-            buf = []
-            for kind, text in make_parts(rec):
-                if kind == "think":
-                    yield f"data: {json.dumps({'think': text})}\n\n"
-                else:
-                    buf.append(text)
-                    yield f"data: {json.dumps({'t': text})}\n\n"
-        except Exception as exc:
-            yield f"data: {json.dumps({'error': str(exc)[:300]})}\n\n"
-            return
+    def emit(self, event: dict, last: bool = False) -> None:
+        with self.cond:
+            self.events.append(event)
+            self.over = last
+            self.cond.notify_all()
+
+    def follow(self):
+        seen = 0
+        while True:
+            with self.cond:
+                while seen == len(self.events) and not self.over:
+                    self.cond.wait()
+                new, seen, over = self.events[seen:], len(self.events), self.over
+            for event in new:
+                yield f"data: {json.dumps(event)}\n\n"
+            if over:
+                return
+
+
+RUNS: dict[tuple[int, str], _Run] = {}         # (paper, "glance" | "deep") -> run
+_runs_lock = threading.Lock()
+
+
+def _generate(run: _Run, make_parts, num: int, key: str, prep) -> None:
+    """Three kinds of event reach the client: {"phase": ...} for the setup work,
+    {"think": text} while the model reasons, {"t": text} as it writes the answer."""
+    t0 = time.time()
+    try:
+        if prep is not None:
+            run.emit({"phase": "fetching the paper"})
+            prep()
+        rec = store.load(num)
+        run.emit({"phase": "reading", "expected": generate.expected_seconds(key)})
+
+        buf = []
+        for kind, text in make_parts(rec):
+            if kind == "think":
+                run.emit({"think": text})
+            else:
+                buf.append(text)
+                run.emit({"t": text})
 
         raw = "".join(buf)
         parsed = generate.parse(raw)
@@ -81,11 +112,29 @@ def _events(make_parts, num: int, key: str, prep=None):
                       seconds=round(time.time() - t0, 1),
                       generated_at=dt.datetime.now().isoformat(timespec="seconds"))
         store.update(num, lambda r: r.update({key: parsed}))
-        yield f"data: {json.dumps({'done': True, 'parsed': parsed})}\n\n"
+        last = {"done": True, "parsed": parsed}
+    except Exception as exc:
+        last = {"error": str(exc)[:300]}
+    with _runs_lock:
+        RUNS.pop((num, key), None)
+    run.emit(last, last=True)
 
-    return StreamingResponse(gen(), media_type="text/event-stream",
+
+def _sse(run: _Run) -> StreamingResponse:
+    return StreamingResponse(run.follow(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
                                       "X-Accel-Buffering": "no"})
+
+
+def _events(make_parts, num: int, key: str, prep=None):
+    """Start a generation, or join the one already running, and relay it as SSE."""
+    with _runs_lock:
+        run = RUNS.get((num, key))
+        if run is None:
+            run = RUNS[(num, key)] = _Run()
+            threading.Thread(target=_generate, args=(run, make_parts, num, key, prep),
+                             daemon=True).start()
+    return _sse(run)
 
 
 @app.get("/")
@@ -114,7 +163,7 @@ def health():
     Polling that twice a second while the server starts is how you end up with
     several of those running at once.
     """
-    return {"ok": True, "stale": _code_mtime() > STARTED_CODE}
+    return {"ok": True, "stale": _code_mtime() > STARTED_CODE, "running": len(RUNS)}
 
 
 @app.get("/api/papers")
@@ -195,6 +244,16 @@ def _prep_deep(num: int) -> None:
 def deep(num: int):
     _rec(num)
     return _events(generate.stream_deep, num, "deep", prep=lambda: _prep_deep(num))
+
+
+@app.post("/api/papers/{num}/{key}/follow")
+def follow(num: int, key: str):
+    """Follow a generation already running -- one started before this page loaded --
+    without ever starting a new one. 404 once it has finished."""
+    run = RUNS.get((num, key))
+    if run is None:
+        raise HTTPException(404, f"no {key} running for paper {num}")
+    return _sse(run)
 
 
 @app.post("/api/papers/{num}/ask")

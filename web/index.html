@@ -12,7 +12,7 @@
 :root{
   --bg:#f6f5f2; --card:#fff; --ink:#191917; --muted:#6c6b64; --line:#e4e2dc;
   --accent:#34567d; --accent-soft:#e9eff6; --warn:#8a5a2b; --warn-soft:#f7eee2;
-  --good:#2f6b4f; --bad:#8c3a3a;
+  --good:#2f6b4f; --good-soft:#e6f2ea; --bad:#8c3a3a;
   --on-accent:#fff;              /* text on a filled accent button */
   --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.06);
   --lift:0 18px 60px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
@@ -23,7 +23,7 @@
 @media (prefers-color-scheme:dark){:root{
   --bg:#141417; --card:#1d1d21; --ink:#e9e8e4; --muted:#9b9a93; --line:#2f2f36;
   --accent:#8db3dd; --accent-soft:#222c39; --warn:#d7aa6c; --warn-soft:#332b1f;
-  --good:#7cc29b; --bad:#d98b8b;
+  --good:#7cc29b; --good-soft:#1b2c23; --bad:#d98b8b;
   /* the dark theme's accent is a pale blue, so a filled button takes dark text */
   --on-accent:#14161c;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
@@ -93,7 +93,16 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
    and the shadow are affordance enough. Before .card.growing, so an opened card
    still takes the accent. */
 .card.noted{border-color:var(--warn);border-width:2px}
-.card h3{margin:0;font-family:var(--read);font-size:18px;line-height:1.38;
+/* A generation in flight shades its card blue; one that has just finished shades it
+   green until the card is opened, so a new reading is findable from across the grid. */
+.card.working:not(.growing){background:var(--accent-soft);border-color:var(--accent);border-width:2px;
+  animation:pulse 1.6s ease-in-out infinite}
+.card.fresh:not(.growing){background:var(--good-soft);border-color:var(--good);border-width:2px}
+@keyframes pulse{50%{box-shadow:0 0 0 4px var(--accent-soft)}}
+.tag.new{background:var(--good);color:var(--card)}
+/* inside an open card: the panel being written, then the panel just written */
+.justdone{background:var(--good-soft);border-radius:10px;padding:2px 14px 8px;margin:0 -14px}
+.card h3{margin:0;font-family:var(--read);font-size:16.5px;line-height:1.38;
   font-weight:600;letter-spacing:-.012em}
 .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
 .tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
@@ -209,7 +218,7 @@ strong{font-weight:600;color:var(--ink)}
 .jobtrack{height:4px;background:var(--line);border-radius:3px;overflow:hidden}
 .jobfill{height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .4s linear}
 .jobtext{color:var(--muted);font-size:13px;margin-top:5px;font-variant-numeric:tabular-nums}
-.prog{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg)}
+.prog{border:1px solid var(--accent);border-radius:10px;padding:12px 14px;background:var(--accent-soft)}
 .prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
   font-size:15px;margin-bottom:9px}
 .prog-top b{font-weight:600}
@@ -226,6 +235,7 @@ strong{font-weight:600;color:var(--ink)}
 
 @media (prefers-reduced-motion:reduce){
   .card.growing{transition:none}
+  .card.working{animation:none}
   .scrim{transition:none}
   .detail{transition:none}
 }
@@ -332,20 +342,24 @@ const dots = n => '●'.repeat(n) + '○'.repeat(5-n);
 
 /* ---------- generations still running ----------
    The fetch keeps streaming after its card is closed, and the server saves the
-   result either way, so a job is tracked by paper number and drawn on the grid
-   card until it finishes.
+   result either way, so a job is tracked by paper and kind -- a summary and a
+   deep read of the same paper run side by side -- and drawn on the grid card
+   until it finishes. Keyed by paper alone, the first to finish ended the other.
 
    A job owns the text so far and how to draw it, but not the panel it draws into:
    that belongs to the card, which can be closed and built again underneath it.
    jobShow hands a running job the panel a freshly opened card just made, so
    reopening a paper picks its generation back up instead of starting a second
    one and paying for the same reading twice. */
-const JOBS = new Map();
+const JOBS = new Map();      // `${kind}:${num}` -> job
+const jobKey = (num, kind) => `${kind}:${num}`;
+const busy = num => JOBS.has(jobKey(num, 'glance')) || JOBS.has(jobKey(num, 'deep'));
+const FRESH = new Map();     // paper -> kind of the reading just finished, until opened
 let ticker = null;
 
 function paint(){
-  for(const [num, j] of JOBS){
-    const card = document.querySelector(`.card[data-num="${num}"]`);
+  for(const j of JOBS.values()){
+    const card = document.querySelector(`.card[data-num="${j.num}"]`);
     if(!card) continue;
     const secs = (Date.now() - j.t0) / 1000;
     const fill = card.querySelector('.jobfill');
@@ -356,11 +370,13 @@ function paint(){
 }
 
 function jobStart(num, kind, root, render){
-  const j = {kind, render, raw: '', t0: Date.now(), label: 'starting',
+  const j = {num, kind, render, raw: '', t0: Date.now(), label: 'starting',
              expected: kind === 'deep' ? 300 : 180,
              root: null, box: null, pr: null};
-  JOBS.set(num, j);
-  jobShow(num, root);
+  JOBS.set(jobKey(num, kind), j);
+  FRESH.delete(num);
+  jobAttach(j, root);
+  if(j.box) j.box.classList.remove('justdone');
   if(!ticker) ticker = setInterval(() => {
     if(!JOBS.size){ clearInterval(ticker); ticker = null; return; }
     paint();
@@ -371,17 +387,17 @@ function jobStart(num, kind, root, render){
 /* Point a running job at the panel of the card that is open now. Which panel it
    is follows from what is being generated, so a deep read reopened mid-flight
    lands under the glance rather than on top of it. */
-function jobShow(num, root){
-  const j = JOBS.get(num);
-  if(!j || !root) return null;
+function jobAttach(j, root){
+  if(!root) return;
   const box = root.querySelector(j.kind === 'deep' ? '.deepwrap' : '.glance');
-  if(!box) return null;
+  if(!box) return;
   j.root = root;
   j.box = box;
   j.pr = progress(box, j.label, j.t0, j.expected);
   if(j.raw){ j.pr.writing(); box.innerHTML = j.render(j.raw); }
-  return j;
 }
+const jobShow = (num, root) =>
+  JOBS.forEach(j => { if(j.num === num) jobAttach(j, root); });
 
 /* The open card is going away. The streams keep running -- only the panels they
    were drawing into are about to be removed. */
@@ -404,10 +420,14 @@ const jobText = (j, t) => {
   if(j.box) j.box.innerHTML = j.render(j.raw);
 };
 
-async function jobEnd(num){
-  const j = JOBS.get(num);
-  if(j && j.pr) j.pr.stop();
-  JOBS.delete(num);
+async function jobEnd(j, ok){
+  const num = j.num;
+  if(j.pr) j.pr.stop();
+  JOBS.delete(jobKey(num, j.kind));
+  if(ok){
+    if(open !== num) FRESH.set(num, j.kind);   // watched it finish: not news
+    if(j.box) j.box.classList.add('justdone');
+  }
   try{
     const d = await (await fetch(`/api/papers/${num}`)).json();
     const p = PAPERS.find(x => x.num === num);
@@ -451,16 +471,20 @@ function starBtn(p){
 }
 
 function cardHtml(p){
-  return `<article class="card${p.notes ? ' noted' : ''}" data-num="${p.num}">
+  const cls = (p.notes ? ' noted' : '') + (busy(p.num) ? ' working'
+            : FRESH.has(p.num) ? ' fresh' : '');
+  return `<article class="card${cls}" data-num="${p.num}">
     <div class="titlerow"><h3>${esc(p.title)}</h3>${starBtn(p)}</div>
     <div class="meta">
       <span class="tag">${esc(p.topic)}</span>
       ${p.notes ? '<span class="sr">read — you have a note on this</span>' : ''}
       <span>${esc(p.authors)}</span><span>${esc(p.year)}</span>
       ${p.match==='none' ? '<span class="tag discard">not on arXiv</span>' : ''}
+      ${!busy(p.num) && FRESH.has(p.num) ? `<span class="tag new">${
+        FRESH.get(p.num) === 'deep' ? 'new deep read' : 'new summary'}</span>` : ''}
     </div>
     ${p.score ? `<div class="dots">${dots(p.score)}</div>` : ''}
-    ${JOBS.has(p.num) ? `<div class="job"><div class="jobtrack"><div class="jobfill"></div></div>
+    ${busy(p.num) ? `<div class="job"><div class="jobtrack"><div class="jobfill"></div></div>
        <div class="jobtext">working</div></div>` : ''}
     ${p.has_glance ? '' : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
   </article>`;
@@ -602,6 +626,7 @@ function openCard(num){
   const card = document.querySelector(`.card[data-num="${num}"]`);
   if(!card) return;
   open = num;
+  FRESH.delete(num);
   lockScroll();                              // the page behind must not scroll
   $('#scrim').classList.add('on');
 
@@ -905,10 +930,13 @@ async function fillDetail(num, root){
       `<details class="abs"${data.glance ? '' : ' open'}>
          <summary>Abstract</summary><p>${esc(data.abstract)}</p></details>`;
   // whatever is saved goes up first, so a deep read in flight has a glance above it
-  if(data.glance) showGlance(num, root, sections(data.glance.raw||''), data);
+  if(data.glance){
+    showGlance(num, root, sections(data.glance.raw||''), data);
+    showDeep(root, data);
+  }
   // a generation from an earlier open of this card is adopted, never restarted:
   // it is already being paid for, and the server saves it either way
-  if(JOBS.has(num)) jobShow(num, root);
+  if(busy(num)) jobShow(num, root);
   else if(!data.glance) runGlance(num, root, data);
   renderQA(num, root, data.chat||[]);
 }
@@ -920,26 +948,29 @@ function showGlance(num, root, s, data){
   // the card may have been closed while this was generating, which detaches root
   const bar = root.closest('.card')?.querySelector('.controls');
   if(!bar) return;
+  // `data` is from when the card opened; a deep read finished since shows in has_deep
+  const hasDeep = data.deep || PAPERS.find(x => x.num === num)?.has_deep;
   bar.innerHTML = `<div class="rowbtns">
-    <button class="btn ${data.deep ? '' : 'primary'}" data-go="deep"
+    <button class="btn ${hasDeep ? '' : 'primary'}" data-go="deep"
       title="Mechanism, the central equation, and the figures">${
-      data.deep ? 'Deep read again' : 'Go deeper'}</button>
+      hasDeep ? 'Deep read again' : 'Go deeper'}</button>
     <button class="btn" data-go="again"
       title="Read the paper again from scratch">Rewrite summary</button>
   </div>`;
   bar.querySelector('[data-go="deep"]').onclick = () => runDeep(num, root);
   bar.querySelector('[data-go="again"]').onclick = () => runGlance(num, root, data);
+}
 
+/* Only when the card opens. A rewritten summary leaves this panel alone: it may
+   hold a deep read still being written, or one finished since `data` was fetched. */
+function showDeep(root, data){
+  if(!data.deep) return;
   const wrap = root.querySelector('.deepwrap');
-  if(data.deep){
-    const d = sections(data.deep.raw||''), used = new Set();
-    wrap.innerHTML = deepHtml(d, data, used);
-    renderEquation(wrap, d.equation, data.macros);
-    renderMath(wrap, data.macros);
-    showFigures(wrap, data, used);
-  }else{
-    wrap.innerHTML = '';
-  }
+  const d = sections(data.deep.raw||''), used = new Set();
+  wrap.innerHTML = deepHtml(d, data, used);
+  renderEquation(wrap, d.equation, data.macros);
+  renderMath(wrap, data.macros);
+  showFigures(wrap, data, used);
 }
 
 function showFigures(wrap, data, used){
@@ -950,15 +981,18 @@ function showFigures(wrap, data, used){
        <div class="figs">${rest.map(figureMarkup).join('')}</div></section>`);
 }
 
-function runGlance(num, root, data){
+/* follow: only follow a run the server already has going -- one started before
+   this page loaded -- and never start a new one. */
+function runGlance(num, root, data, follow){
+  if(JOBS.has(jobKey(num, 'glance'))) return;   // already being written
   const j = jobStart(num, 'glance', root, raw => glanceHtml(sections(raw)));
-  stream(`/api/papers/${num}/glance`, null, {
+  stream(`/api/papers/${num}/glance${follow ? '/follow' : ''}`, null, {
     phase: m => jobPhase(j, m),
     think: t => { if(j.pr) j.pr.think(t); },
     text: t => jobText(j, t),
     done: msg => {
       const box = j.box, here = j.root;     // both null if the card was closed
-      jobEnd(num);
+      jobEnd(j, !msg.error);
       if(msg.error){ if(box) box.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
       const p = PAPERS.find(x=>x.num===num), s = sections(j.raw);
       if(p){ p.claim = s.claim || ''; p.score = +s.score || null; p.has_glance = true; }
@@ -966,15 +1000,16 @@ function runGlance(num, root, data){
     }});
 }
 
-function runDeep(num, root){
+function runDeep(num, root, follow){
+  if(JOBS.has(jobKey(num, 'deep'))) return;     // already being written
   const j = jobStart(num, 'deep', root, raw => deepHtml(sections(raw)));
-  stream(`/api/papers/${num}/deep`, null, {
+  stream(`/api/papers/${num}/deep${follow ? '/follow' : ''}`, null, {
     phase: m => jobPhase(j, m),
     think: t => { if(j.pr) j.pr.think(t); },
     text: t => jobText(j, t),
     done: async msg => {
       const wrap = j.box, raw = j.raw;      // null if the card was closed
-      jobEnd(num);
+      jobEnd(j, !msg.error);
       const p = PAPERS.find(x=>x.num===num);
       if(msg.error){ if(wrap) wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
       if(p) p.has_deep = true;
@@ -1100,7 +1135,11 @@ addEventListener('load', () => {
 
 $('#reload').onclick = () => boot();
 $('#quit').onclick = async () => {
-  if(!confirm('Stop LitDigest? The page will stop working until you open the app again.')) return;
+  let running = 0;
+  try{ running = (await (await fetch('/api/health')).json()).running || 0; }catch(e){}
+  if(!confirm(running
+      ? `${running} reading${running > 1 ? 's are' : ' is'} still being written and will be lost. Stop LitDigest anyway?`
+      : 'Stop LitDigest? The page will stop working until you open the app again.')) return;
   try{ await fetch('/api/quit', {method:'POST'}); }catch(e){}
   document.body.innerHTML =
     '<div style="max-width:520px;margin:22vh auto;text-align:center;color:var(--muted)">'
@@ -1112,6 +1151,10 @@ async function boot(){
   PAPERS = d.papers;
   $('#src').textContent = d.model + ' · ' + d.source.split('/').pop()
     + (d.added ? ` · ${d.added} new` : '');
+  // readings the server kept writing while no page was open: back on the grid,
+  // adopted before it is drawn so their cards come up already marked as working
+  PAPERS.forEach(p => (p.running || []).forEach(k =>
+    k === 'deep' ? runDeep(p.num, null, true) : runGlance(p.num, null, null, true)));
   buildChips(); render();
 }
 boot();

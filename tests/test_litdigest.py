@@ -246,7 +246,8 @@ def test_health_answers_without_reading_the_spreadsheet(monkeypatch):
 
     with TestClient(server.app) as client:
         r = client.get("/api/health")
-        assert r.status_code == 200 and r.json() == {"ok": True, "stale": False}
+        assert r.status_code == 200
+        assert r.json() == {"ok": True, "stale": False, "running": 0}
         with pytest.raises(AssertionError):
             client.get("/api/papers")          # the expensive one, for contrast
 
@@ -330,3 +331,51 @@ def test_an_overlong_paper_keeps_its_start_and_end(monkeypatch):
     body = text.split("FULL TEXT\n", 1)[1]
     assert body.startswith("S" * 900) and body.endswith("E" * 100)
     assert len(body) < 1100
+
+
+# --- generations outlive the page -------------------------------------------
+
+def _fake_generation(tmp_path, monkeypatch, gate=None):
+    import server
+    from litdigest import config, store
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path)
+    monkeypatch.setattr(generate, "expected_seconds", lambda key: 1.0)
+    store.save({"num": 1, "title": "t"})
+    calls = []
+
+    def parts(rec):
+        calls.append(1)
+        if gate is not None:
+            gate.wait(5)
+        yield "say", "[KEY POINTS]\n- a point\n"
+    return server, store, parts, calls
+
+
+def _wait_idle(server):
+    import time
+    for _ in range(200):
+        if not server.RUNS:
+            return
+        time.sleep(0.01)
+    raise AssertionError("the generation never finished")
+
+
+def test_a_generation_is_saved_with_nobody_reading_it(tmp_path, monkeypatch):
+    """A deep read takes minutes. It used to run inside the browser's request, so
+    closing the tab or quitting the page before the end threw it away."""
+    server, store, parts, _ = _fake_generation(tmp_path, monkeypatch)
+    server._events(parts, 1, "glance")             # the response is never read
+    _wait_idle(server)
+    assert store.load(1)["glance"]["key_points"] == "- a point"
+
+
+def test_asking_again_follows_the_run_instead_of_paying_twice(tmp_path, monkeypatch):
+    import threading
+    gate = threading.Event()
+    server, store, parts, calls = _fake_generation(tmp_path, monkeypatch, gate)
+    first = server._events(parts, 1, "glance")
+    second = server._events(parts, 1, "glance")    # the card reopened, the page reloaded
+    assert first is not second and len(server.RUNS) == 1
+    gate.set()
+    _wait_idle(server)
+    assert calls == [1]
