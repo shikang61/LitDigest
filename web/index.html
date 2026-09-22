@@ -131,6 +131,8 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
 .points{margin:0;padding-left:22px}
 .points li{margin-bottom:8px;font-family:var(--read);font-size:18px;line-height:1.6}
 .points li:last-child{margin-bottom:0}
+strong{font-weight:600;color:var(--ink)}
+.points li strong,section.blk p strong{box-shadow:inset 0 -.42em 0 var(--accent-soft)}
 .terms{margin:8px 0 0;padding-left:18px}
 .terms li{margin-bottom:3px}
 .figs{display:grid;gap:12px}
@@ -576,6 +578,36 @@ function wrapBareMath(text){
   }).join('');
 }
 
+/* What the eye should land on: whatever the model marked with **asterisks**, plus
+   the numbers that settle a result -- a multiplier, a percentage, a fine decimal.
+   Plain integers are left alone, since "Section 4" and "2026" are not findings,
+   and neither is a grid size, so a x followed by another number does not count. */
+const QUANTITY = /\b\d[\d,]*(?:\.\d+)?\s?[×x](?!\s*\d)|\b\d[\d,]*(?:\.\d+)?\s?%|\b\d*\.\d{3,}\b/g;
+
+function markup(text){
+  if(!/\*\*|\d/.test(text)) return null;
+  let out = esc(text).replace(/\*\*([^*]{1,60})\*\*/g, '<strong>$1</strong>');
+  if(!out.includes('<strong>')) out = out.replace(QUANTITY, m => `<strong>${m}</strong>`);
+  return out === esc(text) ? null : out;
+}
+
+/* Runs after the maths, so it only ever touches what is left as plain text. */
+function emphasise(root){
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement && !n.parentElement.closest('.katex, strong, .eq')
+      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+  });
+  const nodes = [];
+  while(walk.nextNode()) nodes.push(walk.currentNode);
+  for(const n of nodes){
+    const html = markup(n.nodeValue);
+    if(html === null) continue;
+    const span = document.createElement('span');
+    span.innerHTML = html;
+    n.parentNode.replaceChild(span, n);
+  }
+}
+
 function renderMath(root, macros){
   if(!window.renderMathInElement) return;
   root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li, .card .claim').forEach(el => {
@@ -593,6 +625,8 @@ function renderMath(root, macros){
       macros: macros || {}
     });
   }catch(e){ /* leave the text as written */ }
+  root.querySelectorAll('.points li, section.blk p, .qa .a, .card .claim')
+      .forEach(emphasise);
 }
 
 function renderEquation(root, tex, macros){

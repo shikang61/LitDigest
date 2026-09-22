@@ -29,6 +29,10 @@ Rules:
   which means) where they carry the argument. Vary the sentence length.
 - Give each section as bullet points, one per line, each starting with "- ".
   A bullet is a proper sentence or two, not a fragment: it should read aloud.
+- In each bullet mark the two or three words that carry the point by wrapping them
+  in **double asterisks** -- the name of the method, the number that settles it,
+  the word the claim turns on. Never mark a whole clause, and never mark more than
+  three per bullet; marking everything is the same as marking nothing.
 - Stay brief and concrete, but never at the cost of sounding like a machine. If a
   sentence reads like a telegram, write it out properly instead.
 - Output ONLY the tagged sections below, in order, nothing before or after. No markdown."""
