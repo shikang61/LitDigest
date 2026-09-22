@@ -138,7 +138,11 @@ strong{font-weight:600;color:var(--ink)}
 .figs{display:grid;gap:12px}
 .figs.inline{margin:14px 0 4px}
 .figs figure{margin:0}
-.figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+/* capped on both sides so a tall plot cannot take the whole card; click one to
+   see it at full size, since shrinking costs detail */
+.figs img{display:block;margin:0 auto;width:auto;height:auto;
+  max-width:min(100%,660px);max-height:400px;cursor:zoom-in;
+  border:1px solid var(--line);border-radius:8px;background:#fff}
 .figs figcaption{color:var(--muted);font-size:16px;line-height:1.5;margin-top:8px}
 .terms li{font-family:var(--read)}
 .brand{font-family:var(--ui);font-weight:600}
@@ -503,7 +507,9 @@ function figureRefs(text){
 }
 
 const figureMarkup = f =>
-  `<figure><img loading="lazy" src="/fig/${encodeURIComponent(f.file)}" alt="">
+  `<figure><a href="/fig/${encodeURIComponent(f.file)}" target="_blank" rel="noopener"
+       title="Open at full size"><img loading="lazy"
+       src="/fig/${encodeURIComponent(f.file)}" alt=""></a>
      <figcaption>${esc(f.caption)}</figcaption></figure>`;
 
 /* Any figure this passage names, shown right under it rather than saved up for
@@ -654,7 +660,8 @@ async function fillDetail(num, root){
       <textarea class="notebox" placeholder="What you thought of it…">${esc(p.notes||'')}</textarea>
       <p class="notestate"></p>
     </section>
-    <div class="glance"></div><div class="deepwrap"></div><div class="qa"></div>`;
+    <div class="glance"></div><div class="controls"></div>
+    <div class="deepwrap"></div><div class="qa"></div>`;
 
   const note = root.querySelector('.notebox'), state = root.querySelector('.notestate');
   let saved = p.notes || '';
@@ -683,6 +690,17 @@ async function fillDetail(num, root){
 function showGlance(num, root, s, data){
   root.querySelector('.glance').innerHTML = glanceHtml(s);
   renderMath(root.querySelector('.glance'), data.macros);
+
+  // always reachable, so a digest can be rewritten whenever it reads badly
+  const bar = root.querySelector('.controls');
+  bar.innerHTML = `<div class="rowbtns">
+    <button class="btn ${data.deep ? '' : 'primary'}" data-go="deep">${
+      data.deep ? 'Read it again, deeply' : 'Go deeper — mechanism, equation, figures'}</button>
+    <button class="btn" data-go="again" title="Read the paper again from scratch">Rewrite this summary</button>
+  </div>`;
+  bar.querySelector('[data-go="deep"]').onclick = () => runDeep(num, root);
+  bar.querySelector('[data-go="again"]').onclick = () => runGlance(num, root, data);
+
   const wrap = root.querySelector('.deepwrap');
   if(data.deep){
     const d = sections(data.deep.raw||''), used = new Set();
@@ -691,11 +709,7 @@ function showGlance(num, root, s, data){
     renderMath(wrap, data.macros);
     showFigures(wrap, data, used);
   }else{
-    wrap.innerHTML = `<div class="rowbtns">
-      <button class="btn primary" data-go="deep">Go deeper — mechanism, equation, figures</button>
-      <button class="btn" data-go="again">Regenerate</button></div>`;
-    wrap.querySelector('[data-go="deep"]').onclick = () => runDeep(num, root);
-    wrap.querySelector('[data-go="again"]').onclick = () => runGlance(num, root, data);
+    wrap.innerHTML = '';
   }
 }
 
