@@ -89,8 +89,13 @@ rewrite that file (or set `LITDIGEST_PYTHON`).
   LaTeX source (with the authors' macros, so it renders correctly), the symbols,
   the limits, and how you would use it. Figures are cropped out of the PDF and
   shown underneath.
-- **Ask this paper.** Follow-up questions answered against the paper's actual
-  text, with the conversation kept per paper.
+- **Ask this paper.** The box sits at the foot of the card, in reach at any point
+  in the digest. Questions are answered against the paper's actual text, and the
+  conversation is kept per paper.
+- **Rewrite it.** Two buttons on every card: one rewrites the summary, the other
+  reads it deeply again. Worth using on anything written before a change to how
+  the digests are worded — `./run.py warm --force` does the same to all of them,
+  which is an overnight job at roughly five minutes a paper.
 - **Star it.** The star on a card fills that paper's Title cell yellow in your
   spreadsheet — the same yellow you were already using by hand. Starred papers
   sort to the front and have their own filter.

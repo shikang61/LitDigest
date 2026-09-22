@@ -152,6 +152,8 @@ strong{font-weight:600;color:var(--ink)}
 .qa .turn{margin-bottom:14px}
 .qa .q{font-weight:600;margin:0 0 4px}
 .qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:17.5px;line-height:1.62}
+.card.growing .controls{flex:0 0 auto;margin:12px 0 2px}
+.card.growing .controls .rowbtns{margin:0}
 .askbar{flex:0 0 auto;border-top:1px solid var(--line);padding-top:13px;margin-top:12px;
   background:var(--card)}
 .askrow{display:flex;gap:8px}
@@ -408,7 +410,7 @@ function collapse(){
   const r = ph ? ph.getBoundingClientRect() : card.getBoundingClientRect();
   card.classList.remove('open');
   card.scrollTop = 0;
-  card.querySelectorAll('.detail, .askbar').forEach(el => el.remove());
+  card.querySelectorAll('.detail, .askbar, .controls').forEach(el => el.remove());
   const close = card.querySelector('.close');
   if(close) close.remove();
   Object.assign(card.style, {top:r.top+'px', left:r.left+'px',
@@ -435,6 +437,10 @@ function openCard(num){
   close.textContent = '×';
   close.onclick = e => { e.stopPropagation(); collapse(); };
   card.appendChild(close);
+
+  const controls = document.createElement('div');
+  controls.className = 'controls';
+  card.appendChild(controls);
 
   const detail = document.createElement('div');
   detail.className = 'detail';
@@ -660,8 +666,7 @@ async function fillDetail(num, root){
       <textarea class="notebox" placeholder="What you thought of it…">${esc(p.notes||'')}</textarea>
       <p class="notestate"></p>
     </section>
-    <div class="glance"></div><div class="controls"></div>
-    <div class="deepwrap"></div><div class="qa"></div>`;
+    <div class="glance"></div><div class="deepwrap"></div><div class="qa"></div>`;
 
   const note = root.querySelector('.notebox'), state = root.querySelector('.notestate');
   let saved = p.notes || '';
@@ -692,7 +697,7 @@ function showGlance(num, root, s, data){
   renderMath(root.querySelector('.glance'), data.macros);
 
   // always reachable, so a digest can be rewritten whenever it reads badly
-  const bar = root.querySelector('.controls');
+  const bar = root.closest('.card').querySelector('.controls');
   bar.innerHTML = `<div class="rowbtns">
     <button class="btn ${data.deep ? '' : 'primary'}" data-go="deep">${
       data.deep ? 'Read it again, deeply' : 'Go deeper — mechanism, equation, figures'}</button>
