@@ -26,6 +26,10 @@
   --lift:0 18px 60px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.4);
 }}
 *{box-sizing:border-box}
+html{scrollbar-gutter:stable}
+/* overflow:hidden alone throws the page back to the top, so the body is pinned
+   at its current offset instead and put back afterwards. */
+body.locked{position:fixed;left:0;right:0;overflow:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.6 var(--ui);-webkit-font-smoothing:antialiased}
 button{font:inherit;cursor:pointer}
@@ -77,8 +81,8 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .titlerow h3{flex:1}
 .notebox{width:100%;min-height:70px;resize:vertical;padding:10px 12px;
   border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
-  font:inherit;font-size:15px}
-.notestate{color:var(--muted);font-size:13.5px;margin:6px 0 0;min-height:1.2em}
+  font:inherit;font-size:16.5px}
+.notestate{color:var(--muted);font-size:14px;margin:6px 0 0;min-height:1.2em}
 .dots{letter-spacing:2px;font-size:14px;color:var(--accent)}
 .ghost{color:var(--muted);font-size:13.5px;font-style:italic}
 
@@ -93,7 +97,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
              width .34s var(--ease),height .34s var(--ease),
              padding .34s var(--ease),box-shadow .34s var(--ease)}
 .card.growing:hover{transform:none}
-.card.growing h3{font-size:25px;line-height:1.3;letter-spacing:-.018em;
+.card.growing h3{font-size:27px;line-height:1.28;letter-spacing:-.018em;
   transition:font-size .34s var(--ease)}
 .card.growing .claim{display:none}
 .card.open{padding:26px 30px 30px}
@@ -107,10 +111,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 /* ---- detail contents ---- */
 section.blk{margin-bottom:18px}
-section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:11.5px;letter-spacing:.1em;
+section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:12.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--muted);font-weight:600}
-section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16.5px;line-height:1.68}
-#claim p{font-size:21px;line-height:1.48;font-weight:600;letter-spacing:-.012em}
+section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18px;line-height:1.65}
+#claim p{font-size:23px;line-height:1.45;font-weight:600;letter-spacing:-.012em}
 .rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
 .rowbtns .btn[aria-pressed="true"]{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
@@ -121,14 +125,14 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16
 .figs{display:grid;gap:12px}
 .figs figure{margin:0}
 .figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
-.figs figcaption{color:var(--muted);font-size:13px;margin-top:5px}
+.figs figcaption{color:var(--muted);font-size:14px;margin-top:5px}
 .terms li{font-family:var(--read)}
 .brand{font-family:var(--ui);font-weight:600}
 .qa{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
-.qa h4{margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.qa h4{margin:0 0 10px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .qa .turn{margin-bottom:14px}
 .qa .q{font-weight:600;margin:0 0 4px}
-.qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16px;line-height:1.65}
+.qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:17.5px;line-height:1.62}
 .askrow{display:flex;gap:8px;margin-top:10px}
 .askrow input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);color:var(--ink)}
@@ -136,12 +140,12 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16
 /* ---- progress ---- */
 .prog{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg)}
 .prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-  font-size:14.5px;margin-bottom:9px}
+  font-size:15px;margin-bottom:9px}
 .prog-top b{font-weight:600}
-.prog-top span{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13.5px}
+.prog-top span{color:var(--muted);font-variant-numeric:tabular-nums;font-size:14px}
 .track{height:5px;background:var(--line);border-radius:3px;overflow:hidden}
 .fill{height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .4s linear}
-.think{margin:9px 0 0;color:var(--muted);font-size:13.5px;line-height:1.45;
+.think{margin:9px 0 0;color:var(--muted);font-size:14px;line-height:1.45;
   max-height:3.6em;overflow:hidden;font-style:italic}
 .spin::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
   border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;
@@ -158,7 +162,7 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16
   .grid{padding:14px 16px 60px}
   .bar{padding:12px 16px 8px}
   .card.open{padding:20px 18px 28px}
-  .card.growing h3{font-size:21px}
+  .card.growing h3{font-size:23px}
 }
 </style>
 </head>
@@ -299,6 +303,20 @@ function buildChips(){
   if(starred) add(`★ starred (${starred})`, starsOnly, () => starsOnly = !starsOnly);
 }
 
+/* ---------- background scroll lock ---------- */
+let lockedY = 0;
+function lockScroll(){
+  lockedY = window.scrollY;
+  document.body.style.top = `-${lockedY}px`;
+  document.body.classList.add('locked');
+}
+function unlockScroll(){
+  if(!document.body.classList.contains('locked')) return;
+  document.body.classList.remove('locked');
+  document.body.style.top = '';
+  window.scrollTo(0, lockedY);
+}
+
 /* ---------- the expand animation ---------- */
 /* transitionend does not fire if a property happens not to change, so the
    follow-up work is also armed on a timer and runs whichever comes first. */
@@ -312,7 +330,7 @@ function after(el, fn){
 }
 
 function targetRect(){
-  const w = Math.min(1040, innerWidth - 40);
+  const w = Math.min(1080, innerWidth - 40);
   const h = Math.min(innerHeight - 56, 900);
   return {left:(innerWidth - w)/2, top:(innerHeight - h)/2, width:w, height:h};
 }
@@ -340,6 +358,7 @@ function collapse(){
   const card = document.querySelector('.card.growing');
   if(!card) return;
   const num = open; open = null;
+  unlockScroll();                            // before measuring, so the rect is right
   const ph = card._ph;
   const r = ph ? ph.getBoundingClientRect() : card.getBoundingClientRect();
   card.classList.remove('open');
@@ -364,6 +383,7 @@ function openCard(num){
   const card = document.querySelector(`.card[data-num="${num}"]`);
   if(!card) return;
   open = num;
+  lockScroll();                              // the page behind must not scroll
   $('#scrim').classList.add('on');
 
   const close = document.createElement('button');
@@ -417,7 +437,10 @@ function legacyDollars(text){
     const b = a < 0 ? -1 : text.indexOf('$', a + 1);
     if(a < 0 || b < 0){ out += text.slice(i); return out; }
     const inner = text.slice(a + 1, b);
-    if(inner.length <= 200 && !inner.includes('\n') && /[\\^_{}]/.test(inner)){
+    // Maths has no spaces in it ("$L$", "$x^2$", "$\\partial_t u$" once braced);
+    // a price always runs on into words ("$8.2 million and ").
+    const looksMaths = /[\\^_{}]/.test(inner) || (inner.length <= 16 && !/\s/.test(inner));
+    if(inner.length <= 200 && !inner.includes('\n') && looksMaths){
       out += text.slice(i, a) + '\\(' + inner + '\\)';
       i = b + 1;
     }else{
