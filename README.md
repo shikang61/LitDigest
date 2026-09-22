@@ -8,18 +8,18 @@ words — then, if you want more, the mechanism behind it, the equation, and the
 figures. You can argue with it afterwards.
 
 Each card gets a 1–5 score for whether it is worth your evening, and opens on three
-to six key points drawn from the whole paper rather than its abstract: the finding,
-the new method, the new application, or what it improves on. They read the way a
-friend in the lab would explain them over coffee — plain sentences, everyday words,
-the terms that matter kept but explained the first time they appear, and as much
-explanation as each point needs to land.
+or four short key points drawn from the whole paper rather than its abstract. They
+are written the way a colleague would tell you about it: plain words, a sentence or
+two each, and none of the stock phrasing that gives machine-written text away.
 
-Every bullet is built the same way, so you can skim the first clause of each and
-stop there: the point outright, then what makes it true — an equation, a
-mechanism, an estimate — then where it shows, which for a deep read means the
-figure, named by number so it can be placed beside the bullet that cites it. The
-words a point turns on are marked, and the maths is typeset from the paper's own
-LaTeX.
+The model is not limited to the paper. Before it reads, it searches the web for how
+the paper was received and what came after, so a point can tell you what the paper
+cannot: that nobody has cited it yet, that a follow-up disputed it, what people use
+instead. It says where such things come from, in the sentence.
+
+Each bullet leads with its point, so you can skim the first sentence of each and stop
+there. A deep read names figures by number, so each one is placed beside the bullet
+that cites it, and the maths is typeset from the paper's own LaTeX.
 
 ## Setup
 
@@ -34,12 +34,14 @@ cp .env.example .env                     # then put your key in it
 ```
 XAI_API_KEY=xai-...
 GROK_MODEL=grok-4.7                      # the reading. quality matters here
-GROK_UTIL_MODEL=grok-4.20-0309-non-reasoning   # bulk classification. speed matters here
+GROK_UTIL_MODEL=grok-4.20-0309-non-reasoning   # clustering and web search. speed matters here
 ```
 
 Two models on purpose: a reasoning model spends its entire token budget thinking
 about 182 titles at once and never reaches the JSON, so clustering uses a fast
-one. Run `./run.py models` to see what your key can reach.
+one. The fast one also runs the web search, on the abstract alone, and hands its
+notes to the reading model with the full text. Run `./run.py models` to see what
+your key can reach.
 
 The spreadsheet defaults to `~/Desktop/LitFeed Literature.xlsx`, with `Num`,
 `Title` and `Notes` columns on row 3. Override with `LITDIGEST_XLSX=...`.
@@ -92,16 +94,18 @@ rewrite that file (or set `LITDIGEST_PYTHON`).
   a score and the paper's key points.
   It takes about a minute, because the model thinks for most of it before writing
   anything. So the wait shows real progress: the phase it is in, seconds elapsed
-  against how long your last runs actually took, and the model's own reasoning
-  as it arrives. When the answer starts, the sections fill in as they are written.
+  against how long your last runs actually took, each web search as it runs, and
+  the model's own reasoning as it arrives. When the answer starts, the sections
+  fill in as they are written.
 - **Go deeper.** A second, longer pass: what you need to know already, the
   mechanism step by step, the central equation rendered from the paper's own
   LaTeX source (with the authors' macros, so it renders correctly), the symbols,
   the limits, and how you would use it. Figures are cropped out of the PDF and
   shown underneath.
 - **Ask this paper.** The box sits at the foot of the card, in reach at any point
-  in the digest. Questions are answered against the paper's actual text, and the
-  conversation is kept per paper.
+  in the digest. Questions are answered from the paper's actual text, with a web
+  search first when the question reaches past it ("has anyone built on this?"),
+  and the conversation is kept per paper.
 - **Rewrite it.** Two buttons on every card: one rewrites the summary, the other
   reads it deeply again. Worth using on anything written before a change to how
   the digests are worded — `./run.py warm --force` does the same to all of them,
@@ -200,8 +204,8 @@ litdigest/arxiv.py     title -> arXiv entry, fuzzy-scored with fallbacks
 litdigest/extract.py   PDF -> full text, introduction and conclusion
 litdigest/latex.py     arXiv source -> real equations and author macros
 litdigest/figures.py   PDF -> cropped figure images
-litdigest/generate.py  the glance / deep / ask prompts, streamed
-litdigest/llm.py       xAI client, clustering
+litdigest/generate.py  the glance / deep / ask prompts: web search first, then the reading, streamed
+litdigest/llm.py       xAI client, clustering, web search
 web/vendor/katex/      KaTeX, vendored so the equations render offline
 launch.sh              starts the server and opens the browser
 make_app.sh            builds LitDigest.app for wherever the project lives
@@ -218,8 +222,9 @@ python3 -m pytest tests/ -q
 
 No network and no model calls. They cover the parts that break quietly: title
 matching (including papers retitled between arXiv versions), the tagged-section
-parser (including half-written streams), header-row detection, and the rule that
-editing a title throws away the digest built from the old one.
+parser (including half-written streams), header-row detection, the rule that
+editing a title throws away the digest built from the old one, and the web search
+step (its notes reach the reading, and a failed search still leaves a digest).
 
 ## Known limits
 
@@ -230,6 +235,12 @@ editing a title throws away the digest built from the old one.
 - A glance takes about a minute because the reasoning model thinks before it
   writes. The progress bar is driven by the median of your own past runs, so it
   gets more accurate the more you use it. `warm` removes the wait entirely.
+- The web search is a quick one: the fast model, the abstract, a handful of
+  searches, about five cents a paper on top of the reading. It cannot be given the
+  full text, because xAI re-sends everything on each search turn and did not
+  honour `max_tool_calls` or `max_turns` when tried; with the paper attached, one
+  question ran 32 searches and cost $1.33. What it finds is named in the text but carries no
+  links, so check anything you mean to cite.
 - Figure cropping is a heuristic — it takes the drawing region above each
   "Figure N" caption. It is right on normal two-column papers and can clip oddly
   on unusual layouts.

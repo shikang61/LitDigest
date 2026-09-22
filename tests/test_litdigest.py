@@ -333,6 +333,88 @@ def test_an_overlong_paper_keeps_its_start_and_end(monkeypatch):
     assert len(body) < 1100
 
 
+# --- the web search -----------------------------------------------------------
+
+def _drain(gen):
+    """Everything a generator yields, and what it returns."""
+    out = []
+    try:
+        while True:
+            out.append(next(gen))
+    except StopIteration as done:
+        return out, done.value
+
+
+def _fake_search(monkeypatch, events):
+    from types import SimpleNamespace as NS
+
+    from litdigest import llm
+    monkeypatch.setattr(llm, "client",
+                        lambda: NS(responses=NS(create=lambda **kw: iter(events))))
+
+
+def test_web_search_shows_each_query_and_returns_the_notes(monkeypatch):
+    from types import SimpleNamespace as NS
+
+    from litdigest import llm
+    _fake_search(monkeypatch, [
+        NS(type="response.output_item.done",
+           item=NS(type="web_search_call", action=NS(query="who cites it"))),
+        NS(type="response.output_text.delta", delta="Two later "),
+        NS(type="response.output_text.delta", delta="papers cite it."),
+        NS(type="response.completed"),
+    ])
+    said, notes = _drain(llm.web_search("sys", "user"))
+    assert said == [("think", ' Searching the web for "who cites it". ')]
+    assert notes == "Two later papers cite it."
+
+
+def test_notes_written_without_searching_are_dropped(monkeypatch):
+    """They would reach the reading labelled as web notes, but are only the fast
+    model's opinion."""
+    from types import SimpleNamespace as NS
+
+    from litdigest import llm
+    _fake_search(monkeypatch, [NS(type="response.output_text.delta", delta="I recall...")])
+    assert _drain(llm.web_search("sys", "user")) == ([], "")
+
+
+def _fake_reading(monkeypatch, search):
+    from litdigest import extract, llm
+    seen = {}
+
+    def reading(system, user, max_tokens):
+        seen["user"] = user
+        yield "say", "[CLAIM]\nx"
+    monkeypatch.setattr(llm, "web_search", search)
+    monkeypatch.setattr(llm, "stream_parts", reading)
+    monkeypatch.setattr(extract, "pdf_text", lambda rec: "the paper")
+    return seen
+
+
+def test_what_the_search_found_reaches_the_reading(monkeypatch):
+    def search(system, user):
+        yield "think", " Searching the web for x. "
+        return "A 2025 follow-up disputes it."
+    seen = _fake_reading(monkeypatch, search)
+
+    parts = list(generate.stream_glance({"title": "t", "arxiv": {}}))
+    assert parts == [("think", " Searching the web for x. "), ("say", "[CLAIM]\nx")]
+    assert "A 2025 follow-up disputes it." in seen["user"]
+
+
+def test_a_failed_web_search_still_reads_the_paper(monkeypatch):
+    def search(system, user):
+        raise RuntimeError("search is down")
+        yield
+    seen = _fake_reading(monkeypatch, search)
+
+    parts = list(generate.stream_glance({"title": "t", "arxiv": {}}))
+    assert parts[0][0] == "think" and "failed" in parts[0][1]
+    assert parts[-1] == ("say", "[CLAIM]\nx")
+    assert "WEB SEARCH NOTES" not in seen["user"]
+
+
 # --- generations outlive the page -------------------------------------------
 
 def _fake_generation(tmp_path, monkeypatch, gate=None):

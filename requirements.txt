@@ -1,7 +1,7 @@
 pandas>=2.0
 openpyxl>=3.1
 requests>=2.31
-openai>=1.40
+openai>=1.66           # the Responses API, for web search
 fastapi>=0.110
 uvicorn>=0.29
 pymupdf>=1.24

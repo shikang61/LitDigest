@@ -56,7 +56,8 @@ SOURCE_XLSX = Path(os.environ.get(
 XAI_BASE_URL = os.environ.get("XAI_BASE_URL", "https://api.x.ai/v1")
 XAI_MODEL = os.environ.get("GROK_MODEL", "grok-4.7")
 # Bulk classification wants speed, not reasoning: a reasoning model spends its
-# whole budget thinking about 182 titles and never reaches the JSON.
+# whole budget thinking about 182 titles and never reaches the JSON. It also runs
+# the web search ahead of each reading.
 XAI_UTIL_MODEL = os.environ.get("GROK_UTIL_MODEL", "grok-4.20-0309-non-reasoning")
 
 ARXIV_DELAY = 3.0       # arXiv asks for >=3s between API calls

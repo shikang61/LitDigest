@@ -106,6 +106,45 @@ def stream_parts(system: str, user: str, max_tokens: int = 1500):
             yield "say", delta.content
 
 
+def web_search(system: str, user: str, max_tokens: int = 1000):
+    """Let the model search the web. Yields ("think", ...) for each search, for the
+    progress display, and returns what it wrote up.
+
+    A step of its own, ahead of the reading, with the fast model and no full text.
+    xAI runs the searches server-side and re-sends the whole conversation on every
+    turn, and neither max_tool_calls nor max_turns held it back when tried: with the
+    paper attached, one question ran 32 searches and cost $1.33. It also glued the
+    line the model writes before searching ("I'll check the literature.") onto the
+    answer. Searching needs the Responses API; xAI's chat endpoint has no server-side
+    tools.
+    """
+    resp = client().responses.create(
+        model=config.XAI_UTIL_MODEL,
+        input=[{"role": "system", "content": system},
+               {"role": "user", "content": user}],
+        tools=[{"type": "web_search"}],
+        include=["no_inline_citations"],     # else "[[1]](https://...)" lands mid-sentence
+        max_output_tokens=max_tokens,
+        temperature=0.3,
+        stream=True,
+    )
+    notes, searched = [], False
+    for event in resp:
+        if event.type == "response.output_item.done" and event.item.type == "web_search_call":
+            searched = True
+            query = getattr(getattr(event.item, "action", None), "query", None)
+            if query:
+                yield "think", f' Searching the web for "{query}". '
+        elif event.type == "response.output_text.delta":
+            notes.append(event.delta)
+        elif event.type == "response.failed":
+            raise RuntimeError(event.response.error.message)
+        elif event.type == "error":
+            raise RuntimeError(event.message)
+    # no search, nothing from the web: what it wrote instead is its own opinion
+    return "".join(notes) if searched else ""
+
+
 TOPIC_SYS = "You sort papers into given clusters. JSON only, no commentary."
 
 
