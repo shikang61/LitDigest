@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LitDigest</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -18,8 +15,8 @@
   --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.06);
   --lift:0 18px 60px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
   --ease:cubic-bezier(.22,.8,.26,1);
-  --ui:"IBM Plex Sans",ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --read:"Source Serif 4",Georgia,"Times New Yorker",serif;
+  --ui:Verdana,Geneva,"DejaVu Sans",sans-serif;
+  --read:Verdana,Geneva,"DejaVu Sans",sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#141417; --card:#1d1d21; --ink:#e9e8e4; --muted:#9b9a93; --line:#2f2f36;
@@ -30,7 +27,7 @@
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
-  font:18px/1.6 var(--ui);-webkit-font-smoothing:antialiased}
+  font:16px/1.6 var(--ui);-webkit-font-smoothing:antialiased}
 button{font:inherit;cursor:pointer}
 a{color:var(--accent)}
 
@@ -49,9 +46,9 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
-  padding:5px 12px;border-radius:999px;font-size:15px}
+  padding:5px 12px;border-radius:999px;font-size:13.5px}
 .chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
-.count{color:var(--muted);font-size:15px;margin-top:8px}
+.count{color:var(--muted);font-size:13.5px;margin-top:8px}
 
 /* ---- grid ---- */
 .grid{display:grid;gap:13px;padding:18px 20px 60px;
@@ -60,14 +57,15 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
   padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:7px;
   transition:border-color .12s, transform .12s, box-shadow .12s}
 .card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
-.card h3{margin:0;font-family:var(--read);font-size:19.5px;line-height:1.32;font-weight:600}
-.meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:14px}
-.tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13.5px}
+.card h3{margin:0;font-family:var(--read);font-size:18px;line-height:1.38;
+  font-weight:600;letter-spacing:-.012em}
+.meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
+.tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .tag.note{background:var(--warn-soft);color:var(--warn)}
 .tag.must{background:var(--warn-soft);color:var(--warn)}
 .tag.read{background:var(--accent-soft);color:var(--good)}
 .tag.discard{background:transparent;border:1px solid var(--line);color:var(--muted)}
-.claim{margin:0;font-family:var(--read);font-size:17.5px;line-height:1.5}
+.claim{margin:0;font-family:var(--read);font-size:15.5px;line-height:1.58}
 .star{background:none;border:none;padding:0 2px;font-size:21px;line-height:1;
   color:var(--line);transition:color .12s, transform .12s}
 .star:hover{transform:scale(1.15)}
@@ -79,10 +77,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .titlerow h3{flex:1}
 .notebox{width:100%;min-height:70px;resize:vertical;padding:10px 12px;
   border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
-  font:inherit;font-size:17.5px}
+  font:inherit;font-size:15px}
 .notestate{color:var(--muted);font-size:13.5px;margin:6px 0 0;min-height:1.2em}
 .dots{letter-spacing:2px;font-size:14px;color:var(--accent)}
-.ghost{color:var(--muted);font-size:15px;font-style:italic}
+.ghost{color:var(--muted);font-size:13.5px;font-style:italic}
 
 /* ---- the card growing into a sheet ---- */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;
@@ -95,7 +93,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
              width .34s var(--ease),height .34s var(--ease),
              padding .34s var(--ease),box-shadow .34s var(--ease)}
 .card.growing:hover{transform:none}
-.card.growing h3{font-size:27.5px;line-height:1.26;letter-spacing:-.01em;
+.card.growing h3{font-size:25px;line-height:1.3;letter-spacing:-.018em;
   transition:font-size .34s var(--ease)}
 .card.growing .claim{display:none}
 .card.open{padding:26px 30px 30px}
@@ -109,10 +107,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 /* ---- detail contents ---- */
 section.blk{margin-bottom:18px}
-section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:13px;letter-spacing:.09em;
+section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:11.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--muted);font-weight:600}
-section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:19px;line-height:1.62}
-#claim p{font-size:24.5px;line-height:1.4;font-weight:600;letter-spacing:-.005em}
+section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16.5px;line-height:1.68}
+#claim p{font-size:21px;line-height:1.48;font-weight:600;letter-spacing:-.012em}
 .rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
 .rowbtns .btn[aria-pressed="true"]{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
@@ -123,14 +121,14 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:19
 .figs{display:grid;gap:12px}
 .figs figure{margin:0}
 .figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
-.figs figcaption{color:var(--muted);font-size:14.5px;margin-top:5px}
+.figs figcaption{color:var(--muted);font-size:13px;margin-top:5px}
 .terms li{font-family:var(--read)}
 .brand{font-family:var(--ui);font-weight:600}
 .qa{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
 .qa h4{margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .qa .turn{margin-bottom:14px}
 .qa .q{font-weight:600;margin:0 0 4px}
-.qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18.5px;line-height:1.6}
+.qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16px;line-height:1.65}
 .askrow{display:flex;gap:8px;margin-top:10px}
 .askrow input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);color:var(--ink)}
@@ -160,7 +158,7 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:19
   .grid{padding:14px 16px 60px}
   .bar{padding:12px 16px 8px}
   .card.open{padding:20px 18px 28px}
-  .card.growing h3{font-size:24px}
+  .card.growing h3{font-size:21px}
 }
 </style>
 </head>
@@ -282,6 +280,7 @@ function render(){
   $('#grid').innerHTML = hits.map(cardHtml).join('');
   $('#count').textContent =
     `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
+  renderMath($('#grid'));
 }
 
 function buildChips(){
@@ -407,8 +406,29 @@ function deepHtml(s){
    an exponent or subscript is wrapped before handing the block to KaTeX. */
 const BARE_MATH = /(?:[A-Za-z0-9)\]|]|\\[A-Za-z]+)(?:\^|_)(?:\{[^}]{1,24}\}|[A-Za-z0-9])/;
 
+/* Digests written earlier delimited maths with $...$, which collides with money
+   ("transferring about $8.2 million and $3.1 million" would typeset the words
+   between). A pair is only treated as maths when it contains something no price
+   ever does. */
+function legacyDollars(text){
+  let out = '', i = 0;
+  for(;;){
+    const a = text.indexOf('$', i);
+    const b = a < 0 ? -1 : text.indexOf('$', a + 1);
+    if(a < 0 || b < 0){ out += text.slice(i); return out; }
+    const inner = text.slice(a + 1, b);
+    if(inner.length <= 200 && !inner.includes('\n') && /[\\^_{}]/.test(inner)){
+      out += text.slice(i, a) + '\\(' + inner + '\\)';
+      i = b + 1;
+    }else{
+      out += text.slice(i, a + 1);      // a price: keep it, retry from the next $
+      i = a + 1;
+    }
+  }
+}
+
 function wrapBareMath(text){
-  if(text.includes('$')) return text;              // already delimited, leave alone
+  if(text.includes('\\(')) return text;            // already delimited, leave alone
   const count = (s, c) => (s.split(c).length - 1);
   return text.split(/(\s+)/).map(tok => {
     if(!BARE_MATH.test(tok)) return tok;
@@ -419,22 +439,22 @@ function wrapBareMath(text){
       if('.,;:'.includes(last) || unopened){ post = last + post; core = core.slice(0, -1); }
       else break;
     }
-    return `$${core}$${post}`;
+    return `\\(${core}\\)${post}`;
   }).join('');
 }
 
 function renderMath(root, macros){
   if(!window.renderMathInElement) return;
-  root.querySelectorAll('section.blk p, .qa .a, .terms li').forEach(el => {
+  root.querySelectorAll('section.blk p, .qa .a, .terms li, .card .claim').forEach(el => {
     if(el.dataset.mathed) return;
-    const t = el.textContent;
-    if(t.includes('$') || BARE_MATH.test(t)) el.textContent = wrapBareMath(t);
+    const t = legacyDollars(el.textContent);
+    el.textContent = BARE_MATH.test(t) ? wrapBareMath(t) : t;
     el.dataset.mathed = '1';
   });
   try{
     renderMathInElement(root, {
-      delimiters:[{left:'$$',right:'$$',display:true},
-                  {left:'$',right:'$',display:false},
+      delimiters:[{left:'\\[',right:'\\]',display:true},
+                  {left:'$$',right:'$$',display:true},
                   {left:'\\(',right:'\\)',display:false}],
       throwOnError:false, ignoredTags:['script','noscript','style','textarea','pre'],
       macros: macros || {}
@@ -609,7 +629,11 @@ addEventListener('resize', () => {
   Object.assign(card.style, {top:t.top+'px', left:t.left+'px',
                              width:t.width+'px', height:t.height+'px'});
 });
-$('#q').addEventListener('input', render);
+let searchTimer;
+$('#q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 180);
+});
 $('#reload').onclick = () => boot();
 async function boot(){
   const d = await (await fetch('/api/papers')).json();
