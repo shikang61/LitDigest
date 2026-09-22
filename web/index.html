@@ -47,6 +47,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .btn{background:var(--card);border:1px solid var(--line);color:var(--ink);
   padding:8px 12px;border-radius:9px}
 .btn:hover{border-color:var(--accent)}
+select.btn{padding:8px 10px;cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
@@ -176,6 +177,14 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
   <div class="bar-row">
     <span class="brand">LitDigest<small id="src"></small></span>
     <input type="search" id="q" placeholder="Search title, claim, author, note…" autocomplete="off">
+    <select class="btn" id="sort" title="How to order the cards">
+      <option value="sheet">Spreadsheet order</option>
+      <option value="score">Best first</option>
+      <option value="starred">Starred first</option>
+      <option value="unread">Unread first</option>
+      <option value="year">Newest first</option>
+      <option value="title">Title A–Z</option>
+    </select>
     <button class="btn" id="reload" title="Re-read the spreadsheet">Reload sheet</button>
     <button class="btn" id="quit" title="Stop the LitDigest server">Quit</button>
   </div>
@@ -190,6 +199,18 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let PAPERS = [], topic = null, starsOnly = false, open = null;
+
+const SORTS = {
+  sheet:   (a, b) => a.num - b.num,
+  score:   (a, b) => (b.score || 0) - (a.score || 0) || a.num - b.num,
+  starred: (a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0) || a.num - b.num,
+  unread:  (a, b) => (a.has_glance ? 1 : 0) - (b.has_glance ? 1 : 0) || a.num - b.num,
+  year:    (a, b) => String(b.year || '').localeCompare(String(a.year || '')) || a.num - b.num,
+  title:   (a, b) => a.title.localeCompare(b.title),
+};
+let sortBy = 'sheet';
+try{ sortBy = localStorage.getItem('litdigest.sort') || 'sheet'; }catch(e){}
+if(!SORTS[sortBy]) sortBy = 'sheet';
 
 /* ---------- streaming ---------- */
 async function stream(url, body, h){
@@ -284,7 +305,7 @@ function render(){
     (!starsOnly || p.starred) &&
     (!needle || needle.split(/\s+/).every(w =>
       (p.title+' '+p.authors+' '+p.topic+' '+p.claim+' '+p.notes).toLowerCase().includes(w))));
-  hits.sort((a,b) => a.num - b.num);        // the order they are in the spreadsheet
+  hits.sort(SORTS[sortBy] || SORTS.sheet);
   $('#grid').innerHTML = hits.map(cardHtml).join('');
   $('#count').textContent =
     `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
@@ -666,6 +687,12 @@ $('#q').addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 180);
 });
+$('#sort').value = sortBy;
+$('#sort').onchange = e => {
+  sortBy = e.target.value;
+  try{ localStorage.setItem('litdigest.sort', sortBy); }catch(err){}
+  render();
+};
 $('#reload').onclick = () => boot();
 $('#quit').onclick = async () => {
   if(!confirm('Stop LitDigest? The page will stop working until you open the app again.')) return;
