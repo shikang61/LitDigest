@@ -207,12 +207,16 @@ def ask(num: int, question: str = Body(..., embed=True)):
     buf = []
 
     def relay():
-        for kind, piece in generate.stream_ask(rec, question, history):
-            if kind == "think":
-                yield f"data: {json.dumps({'think': piece})}\n\n"
-                continue
-            buf.append(piece)
-            yield f"data: {json.dumps({'t': piece})}\n\n"
+        try:
+            for kind, piece in generate.stream_ask(rec, question, history):
+                if kind == "think":
+                    yield f"data: {json.dumps({'think': piece})}\n\n"
+                    continue
+                buf.append(piece)
+                yield f"data: {json.dumps({'t': piece})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)[:300]})}\n\n"
+            return
         turn = {"q": question, "a": "".join(buf)}
         store.update(num, lambda r: r.setdefault("chat", []).append(turn))
         yield f"data: {json.dumps({'done': True})}\n\n"

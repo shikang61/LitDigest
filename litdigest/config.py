@@ -64,7 +64,11 @@ MATCH_STRONG = 0.90     # title similarity accepted outright
 MATCH_FUZZY = 0.72      # below this, character similarity alone is not enough
 MATCH_WORDS = 0.75      # ...but containing this share of the title's words is
 RESOLVED = ("ok", "fuzzy", "pinned")   # match states a paper can be read from
-EXCERPT_CHARS = 9000    # per section (intro, conclusion) sent to the model
+EXCERPT_CHARS = 9000    # per section (intro, conclusion) pulled out of the PDF
+# The model reads the whole paper up to its references. Median is ~57k characters;
+# past this cap (a thesis, a book) only the start and the last EXCERPT_CHARS are
+# sent, so one outlier cannot overflow the model's context or cost ten papers.
+FULLTEXT_CHARS = 200_000
 WORKERS = 6             # parallel Grok calls
 
 for _d in (PAPER_DIR, PDF_DIR, SRC_DIR, FIG_DIR):

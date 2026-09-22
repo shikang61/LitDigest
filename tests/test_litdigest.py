@@ -310,3 +310,23 @@ def test_a_note_cannot_be_written_without_a_notes_column(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "bk")
 
     assert sheet.set_note(1, "a note") is False
+
+
+# --- the prompts ------------------------------------------------------------
+
+def test_the_deep_prompt_differs_from_the_glance_prompt():
+    """DEEP_SYS is GLANCE_SYS with one sentence swapped by str.replace, which does
+    nothing at all once that sentence is reworded."""
+    assert generate.DEEP_SYS != generate.GLANCE_SYS
+
+
+def test_an_overlong_paper_keeps_its_start_and_end(monkeypatch):
+    from litdigest import config, extract
+    monkeypatch.setattr(config, "FULLTEXT_CHARS", 1000)
+    monkeypatch.setattr(config, "EXCERPT_CHARS", 100)
+    monkeypatch.setattr(extract, "pdf_text", lambda rec: "S" * 5000 + "E" * 100)
+
+    text = generate._whole_paper({"title": "t", "arxiv": {}})
+    body = text.split("FULL TEXT\n", 1)[1]
+    assert body.startswith("S" * 900) and body.endswith("E" * 100)
+    assert len(body) < 1100

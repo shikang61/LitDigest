@@ -3,13 +3,16 @@
 A reading list you have no time for, turned into something you can work through.
 
 Point it at a spreadsheet of arXiv titles and it gives you a card grid. Click a
-card and it reads the paper for you and answers the only question that matters
-first — *is this worth your evening?* — then the mechanism behind it, then the
-equation, then the figures. You can argue with it afterwards.
+card and it reads the whole paper for you and tells you what is in it, in plain
+words — then, if you want more, the mechanism behind it, the equation, and the
+figures. You can argue with it afterwards.
 
-It does not write summaries. A summary tells you what is in a paper; it does not
-tell you whether to read it. Each card opens with a claim, a 1–5 score, and a
-verdict that names the one section worth ten minutes if the answer is no.
+Each card gets a 1–5 score for whether it is worth your evening, and opens on three
+to six key points drawn from the whole paper rather than its abstract: the finding,
+the new method, the new application, or what it improves on. They read the way a
+friend in the lab would explain them over coffee — plain sentences, everyday words,
+the terms that matter kept but explained the first time they appear, and as much
+explanation as each point needs to land.
 
 Every bullet is built the same way, so you can skim the first clause of each and
 stop there: the point outright, then what makes it true — an equation, a
@@ -86,7 +89,7 @@ rewrite that file (or set `LITDIGEST_PYTHON`).
 ## Using it
 
 - **Click a card.** It fetches the PDF if it has not already, then streams back
-  claim / score / verdict / the trick / holds up.
+  a score and the paper's key points.
   It takes about a minute, because the model thinks for most of it before writing
   anything. So the wait shows real progress: the phase it is in, seconds elapsed
   against how long your last runs actually took, and the model's own reasoning
@@ -152,7 +155,7 @@ yellow cells and existing notes are read back in, so the highlighting you alread
 did shows up as stars on first run. The first write of each session copies the
 untouched file to `cache/backup/` first.
 
-Everything else — verdicts, scores, the digests themselves — stays in
+Everything else — scores, the digests themselves — stays in
 `cache/papers/` and never touches your sheet.
 
 ## Categories
@@ -194,7 +197,7 @@ litdigest/config.py    paths, models, rate limits, .env loader
 litdigest/store.py     one JSON file per paper
 litdigest/ingest.py    spreadsheet -> records
 litdigest/arxiv.py     title -> arXiv entry, fuzzy-scored with fallbacks
-litdigest/extract.py   PDF -> introduction and conclusion
+litdigest/extract.py   PDF -> full text, introduction and conclusion
 litdigest/latex.py     arXiv source -> real equations and author macros
 litdigest/figures.py   PDF -> cropped figure images
 litdigest/generate.py  the glance / deep / ask prompts, streamed

@@ -85,7 +85,6 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .tag.must{background:var(--warn-soft);color:var(--warn)}
 .tag.read{background:var(--accent-soft);color:var(--good)}
 .tag.discard{background:transparent;border:1px solid var(--line);color:var(--muted)}
-.claim{margin:0;font-family:var(--read);font-size:15.5px;line-height:1.58}
 .star{background:none;border:none;padding:0 2px;font-size:21px;line-height:1;
   color:var(--line);transition:color .12s, transform .12s}
 .star:hover{transform:scale(1.15)}
@@ -118,7 +117,6 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .card.growing:hover{transform:none}
 .card.growing h3{font-size:30px;line-height:1.24;letter-spacing:-.018em;
   transition:font-size .34s var(--ease)}
-.card.growing .claim{display:none}
 .card.open{padding:26px 30px 30px}
 .placeholder{border:1px dashed var(--line);border-radius:12px;opacity:.5}
 .close{position:absolute;top:14px;right:16px;background:none;border:none;
@@ -149,7 +147,6 @@ section.blk h4{margin:0 0 9px;font-family:var(--ui);font-size:14px;letter-spacin
 section.blk h4::after{content:"";flex:1;height:1px;background:var(--line)}
 section.blk{margin-bottom:24px}
 section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18px;line-height:1.65}
-#claim p{font-size:23px;line-height:1.45;font-weight:600;letter-spacing:-.012em}
 .rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
 .rowbtns .btn[aria-pressed="true"]{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
@@ -231,7 +228,7 @@ strong{font-weight:600;color:var(--ink)}
 <div class="bar">
   <div class="bar-row">
     <span class="brand">LitDigest<small id="src"></small></span>
-    <input type="search" id="q" placeholder="Search title, claim, author, note…" autocomplete="off">
+    <input type="search" id="q" placeholder="Search title, author, note…" autocomplete="off">
     <button class="btn" id="reload" title="Re-read the spreadsheet">Reload sheet</button>
     <button class="btn" id="quit" title="Stop the LitDigest server">Quit</button>
   </div>
@@ -442,8 +439,7 @@ function cardHtml(p){
     ${p.score ? `<div class="dots">${dots(p.score)}</div>` : ''}
     ${JOBS.has(p.num) ? `<div class="job"><div class="jobtrack"><div class="jobfill"></div></div>
        <div class="jobtext">working</div></div>` : ''}
-    ${p.claim ? `<p class="claim">${esc(unbullet(p.claim))}</p>`
-              : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
+    ${p.has_glance ? '' : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
   </article>`;
 }
 
@@ -454,7 +450,7 @@ function render(){
     (!topic || p.topic === topic) &&
     (!starsOnly || p.starred) &&
     (!needle || needle.split(/\s+/).every(w =>
-      (p.title+' '+p.authors+' '+p.topic+' '+p.claim+' '+p.notes).toLowerCase().includes(w))));
+      (p.title+' '+p.authors+' '+p.topic+' '+p.notes).toLowerCase().includes(w))));
   hits.sort(SORTS[sortBy] || SORTS.sheet);
   VIEW = hits;
   $('#grid').innerHTML = hits.map(cardHtml).join('');
@@ -631,11 +627,6 @@ function openCard(num){
    newline inside one is an artifact. */
 const prose = t => String(t || '').replace(/\s*\n+\s*/g, ' ').trim();
 
-/* Every other section is bullets, so the model writes the claim as one too. It is
-   a single sentence and the heading above it already says what it is, so the
-   marker is only noise -- and it is noise on the most prominent line in the app. */
-const unbullet = t => String(t || '').replace(/^\s*[-*\u2022]\s+/, '');
-
 /* Sections are bullets. Digests written before that was asked for are single
    paragraphs, so they are split at sentence ends -- taking care not to break on
    "Fig. 7" or a decimal, and gluing back any fragment too short to stand alone. */
@@ -663,14 +654,10 @@ const points = text => {
                    : '';
 };
 
+// [KEY POINTS] was [TRICK] in summaries written before it was renamed
 function glanceHtml(s){
   return `
-  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(unbullet(prose(s.claim||'')))}</p></section>
-  <section class="blk"><h4>Worth it</h4>
-    <div class="dots">${s.score ? dots(+s.score) : ''}</div>
-    ${points(s.verdict)}</section>
-  <section class="blk"><h4>The trick</h4>${points(s.trick)}</section>
-  <section class="blk"><h4>Holds up?</h4>${points(s.holds_up)}</section>`;
+  <section class="blk"><h4>Key points</h4>${points(s.key_points || s.trick)}</section>`;
 }
 const figNum = f => {
   const m = String(f.caption || '').match(/fig(?:ure)?\.?\s*(\d+)/i);
@@ -783,7 +770,7 @@ const QUANTITY = /\b\d[\d,]*(?:\.\d+)?\s?[×x](?!\s*\d)|\b\d[\d,]*(?:\.\d+)?\s?%
    a rendered element, and the text "**.", and neither piece holds a complete pair
    any more. Marking first leaves KaTeX free to typeset inside the emphasis. */
 function boldMarks(root){
-  root.querySelectorAll('section.blk p, .points li, .qa .a, .card .claim').forEach(el => {
+  root.querySelectorAll('section.blk p, .points li, .qa .a').forEach(el => {
     if(el.dataset.marked || !el.textContent.includes('**')) return;
     el.dataset.marked = '1';
     el.innerHTML = esc(el.textContent)
@@ -817,7 +804,7 @@ function emphasise(el){
    server too old to have /vendor ends up showing raw \(x\) *and* raw **asterisks**. */
 function renderMath(root, macros){
   if(window.renderMathInElement){
-    root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li, .card .claim').forEach(el => {
+    root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li').forEach(el => {
       if(el.dataset.mathed) return;
       const t = legacyDollars(el.textContent);
       el.textContent = BARE_MATH.test(t) ? wrapBareMath(t) : t;
@@ -836,7 +823,7 @@ function renderMath(root, macros){
       });
     }catch(e){ /* leave the text as written */ }
   }
-  root.querySelectorAll('.points li, section.blk p, .qa .a, .card .claim')
+  root.querySelectorAll('.points li, section.blk p, .qa .a')
       .forEach(emphasise);
 }
 
