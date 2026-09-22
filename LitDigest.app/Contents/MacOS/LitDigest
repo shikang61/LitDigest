@@ -1,0 +1,4 @@
+#!/bin/bash
+# Thin wrapper: the real logic lives in launch.sh next to the project, so it stays readable.
+HERE="$(cd "$(dirname "$0")/../../.." && pwd)"
+exec "$HERE/launch.sh"

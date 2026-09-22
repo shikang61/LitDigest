@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""LitDigest app: reads the spreadsheet, serves the card grid, generates on click."""
+import json
+import time
+import datetime as dt
+from pathlib import Path
+
+from fastapi import Body, FastAPI, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+
+from litdigest import arxiv, config, extract, figures, generate, ingest, llm, sheet, store
+
+WEB = Path(__file__).parent / "web"
+app = FastAPI(title="LitDigest")
+app.mount("/fig", StaticFiles(directory=config.FIG_DIR), name="fig")
+
+
+def _rec(num: int) -> dict:
+    rec = store.load(num)
+    if rec is None:
+        raise HTTPException(404, f"no paper {num}")
+    return rec
+
+
+def _card(rec: dict) -> dict:
+    arx = rec.get("arxiv", {})
+    g = rec.get("glance", {})
+    authors = arx.get("authors", [])
+    return {
+        "num": rec["num"],
+        "title": arx.get("title") or rec["title"],
+        "notes": rec.get("notes", ""),
+        "topic": rec.get("topic", "Unclustered"),
+        "starred": bool(rec.get("starred")),
+        "year": arx.get("year", ""),
+        "authors": (authors[0] + " et al." if len(authors) > 1
+                    else (authors[0] if authors else "")),
+        "arxiv_id": arx.get("id", ""),
+        "abs_url": arx.get("abs_url", ""),
+        "match": arx.get("match_status", ""),
+        "claim": g.get("claim", ""),
+        "score": g.get("score"),
+        "has_glance": bool(g),
+        "has_deep": bool(rec.get("deep")),
+    }
+
+
+def _events(make_parts, num: int, key: str, prep=None):
+    """Relay one generation to the browser as SSE, then persist it.
+
+    Three kinds of event reach the client: {"phase": ...} for the setup work,
+    {"think": text} while the model reasons, {"t": text} as it writes the answer.
+    """
+    def gen():
+        t0 = time.time()
+        try:
+            if prep is not None:
+                yield f"data: {json.dumps({'phase': 'fetching the paper'})}\n\n"
+                prep()
+            rec = store.load(num)
+            yield f"data: {json.dumps({'phase': 'reading', 'expected': generate.expected_seconds(key)})}\n\n"
+
+            buf = []
+            for kind, text in make_parts(rec):
+                if kind == "think":
+                    yield f"data: {json.dumps({'think': text})}\n\n"
+                else:
+                    buf.append(text)
+                    yield f"data: {json.dumps({'t': text})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)[:300]})}\n\n"
+            return
+
+        raw = "".join(buf)
+        parsed = generate.parse(raw)
+        parsed.update(raw=raw, model=config.XAI_MODEL,
+                      seconds=round(time.time() - t0, 1),
+                      generated_at=dt.datetime.now().isoformat(timespec="seconds"))
+        fresh = store.load(num)
+        fresh[key] = parsed
+        store.save(fresh)
+        yield f"data: {json.dumps({'done': True, 'parsed': parsed})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
+
+
+@app.get("/")
+def index():
+    return FileResponse(WEB / "index.html")
+
+
+@app.get("/api/papers")
+def papers():
+    """Always re-reads the spreadsheet, so rows added since last time show up."""
+    ingest.run()
+    recs = list(store.all_records())
+
+    # a paper with no topic, or one filed under a category that no longer exists,
+    # is refiled on open -- so editing the category list refiles the library
+    labels = {c["label"] for c in llm.taxonomy()}
+    fresh = [r["num"] for r in recs if r.get("topic") not in labels]
+    if fresh:
+        try:
+            llm.assign_topics(only=fresh)
+            recs = list(store.all_records())
+        except Exception:
+            pass          # they stay Unclustered; the app still opens
+    return {"papers": [_card(r) for r in recs],
+            "model": config.XAI_MODEL,
+            "source": str(config.SOURCE_XLSX),
+            "added": len(fresh)}
+
+
+@app.post("/api/reload")
+def reload_sheet():
+    n = ingest.run()
+    return {"ingested": n}
+
+
+@app.get("/api/papers/{num}")
+def paper(num: int):
+    rec = _rec(num)
+    return {"card": _card(rec),
+            "abstract": rec.get("arxiv", {}).get("abstract", ""),
+            "glance": rec.get("glance"),
+            "deep": rec.get("deep"),
+            "macros": rec.get("macros", {}),
+            "figures": rec.get("figures", []),
+            "chat": rec.get("chat", []),
+            "ready": bool(rec.get("text")),
+            "errors": rec.get("errors", [])}
+
+
+@app.post("/api/papers/{num}/prepare")
+def prepare(num: int):
+    """Resolve on arXiv and pull the PDF text -- whatever is still missing."""
+    rec = _rec(num)
+    if rec.get("arxiv", {}).get("match_status") not in config.RESOLVED:
+        rec["arxiv"] = arxiv.find(rec["title"])
+        store.save(rec)
+    if rec["arxiv"]["match_status"] == "none":
+        raise HTTPException(422, "arXiv has no paper under this title")
+    if not rec.get("text"):
+        rec["text"] = extract.sections(extract.pdf_text(rec))
+        store.save(rec)
+    return {"ready": True, "chars": rec["text"]["chars"]}
+
+
+@app.post("/api/papers/{num}/glance")
+def glance(num: int):
+    _rec(num)
+    return _events(generate.stream_glance, num, "glance",
+                   prep=lambda: prepare(num))
+
+
+@app.post("/api/papers/{num}/deep")
+def deep(num: int):
+    _rec(num)
+
+    def prep():
+        prepare(num)
+        rec = generate.prepare_equations(store.load(num))
+        if "figures" not in rec:
+            rec["figures"] = figures.extract(rec["arxiv"]["id"])
+        store.save(rec)
+
+    return _events(generate.stream_deep, num, "deep", prep=prep)
+
+
+@app.post("/api/papers/{num}/ask")
+def ask(num: int, question: str = Body(..., embed=True)):
+    rec = _rec(num)
+    if not rec.get("text"):
+        prepare(num)
+        rec = _rec(num)
+    history = rec.get("chat", [])
+    buf = []
+
+    def relay():
+        for kind, piece in generate.stream_ask(rec, question, history):
+            if kind == "think":
+                yield f"data: {json.dumps({'think': piece})}\n\n"
+                continue
+            buf.append(piece)
+            yield f"data: {json.dumps({'t': piece})}\n\n"
+        fresh = store.load(num)
+        fresh.setdefault("chat", []).append({"q": question, "a": "".join(buf)})
+        store.save(fresh)
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(relay(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/papers/{num}/note")
+def note(num: int, text: str = Body(..., embed=True)):
+    """Save a note and write it straight into the spreadsheet's Notes column."""
+    rec = _rec(num)
+    if not sheet.set_note(num, text):
+        raise HTTPException(422, "could not find this paper's row in the spreadsheet")
+    rec["notes"] = text
+    store.save(rec)
+    return {"num": num, "notes": text}
+
+
+@app.post("/api/papers/{num}/star")
+def star(num: int, starred: bool = Body(..., embed=True)):
+    """Star a paper, which fills its Title cell yellow in the spreadsheet."""
+    rec = _rec(num)
+    if not sheet.set_star(num, starred):
+        raise HTTPException(422, "could not find this paper's row in the spreadsheet")
+    rec["starred"] = starred
+    store.save(rec)
+    return {"num": num, "starred": starred}
+
+
+@app.get("/api/taxonomy")
+def taxonomy():
+    return {"clusters": llm.taxonomy()}

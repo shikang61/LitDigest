@@ -1,0 +1,247 @@
+"""Grok (xAI) calls: build a topic taxonomy, then digest each paper into strict JSON."""
+import json
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from openai import OpenAI
+
+from . import config, store
+
+_client = None
+
+
+def client() -> OpenAI:
+    global _client
+    if _client is None:
+        key = os.environ.get("XAI_API_KEY")
+        if not key:
+            raise SystemExit(
+                "XAI_API_KEY is not set. Put it in a .env file at the repo root "
+                "(XAI_API_KEY=xai-...) or export it in your shell.")
+        _client = OpenAI(api_key=key, base_url=config.XAI_BASE_URL)
+    return _client
+
+
+def models() -> list[str]:
+    return sorted(m.id for m in client().models.list().data)
+
+
+def _json_call(system: str, user: str, max_tokens: int = 1600,
+               model: str | None = None) -> dict:
+    resp = client().chat.completions.create(
+        model=model or config.XAI_MODEL,
+        messages=[{"role": "system", "content": system},
+                  {"role": "user", "content": user}],
+        response_format={"type": "json_object"},
+        max_tokens=max_tokens,
+        temperature=0.2,
+    )
+    body = resp.choices[0].message.content or ""
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        m = re.search(r"\{.*\}", body, re.S)       # model wrapped it in prose/fences
+        if not m:
+            raise
+        return json.loads(m.group())
+
+
+# --- taxonomy -------------------------------------------------------------
+
+TAXONOMY_SYS = (
+    "You organise research libraries. You reply with JSON only, no commentary.")
+
+TAXONOMY_USER = """Below are {n} arXiv paper titles from one researcher's reading list.
+
+Group them into 8-12 topic clusters that carve the list at its natural joints.
+Clusters must be mutually exclusive, cover every title, and be named in the
+researcher's own vocabulary (not generic words like "Mathematics" or "Other").
+
+Return JSON: {{"clusters": [{{"label": "<2-5 words>", "scope": "<one line saying what belongs here>"}}]}}
+
+TITLES
+{titles}"""
+
+
+def build_taxonomy() -> list[dict]:
+    titles = [r["title"] for r in store.all_records()]
+    data = _json_call(
+        TAXONOMY_SYS,
+        TAXONOMY_USER.format(n=len(titles),
+                             titles="\n".join(f"- {t}" for t in titles)),
+        max_tokens=4000, model=config.XAI_UTIL_MODEL)
+    clusters = data["clusters"]
+    config.TAXONOMY_FILE.write_text(json.dumps(clusters, indent=2, ensure_ascii=False))
+    return clusters
+
+
+def taxonomy() -> list[dict]:
+    if config.TAXONOMY_FILE.exists():
+        return json.loads(config.TAXONOMY_FILE.read_text())
+    return config.CLUSTERS
+
+
+# --- per-paper digest -----------------------------------------------------
+
+DIGEST_SYS = (
+    "You triage arXiv papers for a PhD student who will not read them in full. "
+    "Be concrete and technical: name the actual method, scheme, model or estimator, "
+    "and quote the actual numbers the paper reports. Never write filler such as "
+    "'this paper explores' or 'the authors investigate'. Reply with JSON only.")
+
+DIGEST_USER = """PAPER
+Title: {title}
+Authors: {authors}
+Year: {year}
+arXiv categories: {categories}
+
+ABSTRACT
+{abstract}
+
+INTRODUCTION (excerpt)
+{intro}
+
+CONCLUSION (excerpt)
+{conclusion}
+
+TOPIC CLUSTERS (choose exactly one label, verbatim)
+{clusters}
+
+Return JSON with exactly these keys:
+{{
+  "problem":   "1-2 sentences: the specific gap or failure of prior work this attacks.",
+  "method":    "2-4 sentences: what they actually built or proved, naming the technique.",
+  "result":    "1-3 sentences: the concrete finding, with the paper's own numbers where given.",
+  "key_terms": ["3-6 items, each 'term -- short gloss' for jargon the paper leans on"],
+  "prereqs":   ["2-4 background topics you must already know to read this paper"],
+  "topic":     "one cluster label, copied verbatim",
+  "depth":     "one of: survey, theory, method, empirical, application",
+  "confidence":"one of: high, medium, low -- how well the supplied text supported this digest"
+}}"""
+
+
+def digest_one(rec: dict, clusters: list[dict]) -> dict:
+    arx = rec.get("arxiv", {})
+    text = rec.get("text", {})
+    user = DIGEST_USER.format(
+        title=rec["title"],
+        authors=", ".join(arx.get("authors", [])[:8]) or "unknown",
+        year=arx.get("year", "unknown"),
+        categories=", ".join(arx.get("categories", [])) or "unknown",
+        abstract=arx.get("abstract", "(not available)"),
+        intro=text.get("intro", "(not available)"),
+        conclusion=text.get("conclusion", "(not available)"),
+        clusters="\n".join(f'- {c["label"]}: {c["scope"]}' for c in clusters))
+    return _json_call(DIGEST_SYS, user)
+
+
+def run(force: bool = False, limit: int | None = None) -> dict:
+    clusters = taxonomy()
+    labels = {c["label"] for c in clusters}
+    todo = [r for r in store.all_records()
+            if r.get("arxiv", {}).get("match_status") in ("ok", "fuzzy")
+            and (force or not r.get("digest"))]
+    if limit:
+        todo = todo[:limit]
+
+    counts = {"ok": 0, "failed": 0}
+    with ThreadPoolExecutor(max_workers=config.WORKERS) as pool:
+        futures = {pool.submit(digest_one, r, clusters): r for r in todo}
+        for fut in as_completed(futures):
+            rec = futures[fut]
+            try:
+                d = fut.result()
+                if d.get("topic") not in labels:
+                    d["topic"] = "Unclustered"
+                rec["digest"] = d
+                counts["ok"] += 1
+                print(f"  [{rec['num']:>3}] {d['topic'][:28]:<28} "
+                      f"{rec['title'][:50]}", flush=True)
+            except Exception as exc:
+                store.note_error(rec, "digest", exc)
+                counts["failed"] += 1
+                print(f"  [{rec['num']:>3}] FAIL {exc}", flush=True)
+            store.save(rec)
+    return counts
+
+
+def stream_parts(system: str, user: str, max_tokens: int = 1500):
+    """Yield ("think", text) while the model reasons, then ("say", text) as it writes.
+
+    A reasoning model is silent for most of a minute before its first answer token,
+    so the reasoning stream is what the progress display is built on.
+    """
+    resp = client().chat.completions.create(
+        model=config.XAI_MODEL,
+        messages=[{"role": "system", "content": system},
+                  {"role": "user", "content": user}],
+        max_tokens=max_tokens,
+        temperature=0.3,
+        stream=True,
+    )
+    for chunk in resp:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        thinking = getattr(delta, "reasoning_content", None)
+        if thinking:
+            yield "think", thinking
+        if delta.content:
+            yield "say", delta.content
+
+
+def stream(system: str, user: str, max_tokens: int = 1500):
+    """Answer text only."""
+    for kind, text in stream_parts(system, user, max_tokens):
+        if kind == "say":
+            yield text
+
+
+TOPIC_SYS = "You sort papers into given clusters. JSON only, no commentary."
+
+
+def assign_topics(only: list[int] | None = None) -> dict:
+    """File titles under a cluster, so the grid is filterable before anything has
+    been generated. `only` restricts it to newly added papers."""
+    clusters = taxonomy()
+    recs = list(store.all_records())
+    if only is not None:
+        keep = set(only)
+        recs = [r for r in recs if r["num"] in keep]
+    if not recs:
+        return {"assigned": 0, "total": 0}
+    labels = "\n".join(f'- {c["label"]}: {c["scope"]}' for c in clusters)
+
+    got = {}
+    for i in range(0, len(recs), 50):
+        batch = recs[i:i + 50]
+        listing = "\n".join(f'{r["num"]}. {r["title"]}' for r in batch)
+        data = _json_call(
+            TOPIC_SYS,
+            f"""Assign every paper below to exactly one cluster.
+
+CLUSTERS
+{labels}
+
+PAPERS
+{listing}
+
+When a paper spans two clusters, file it by its own contribution, not its subject
+matter: a new learning method applied to plasma is AI, a plasma result that happens
+to use a trained model is Fusion, and a numerical scheme for a plasma system is
+Numerics. Market papers go to Finance unless the method is statistical physics.
+
+Return JSON: {{"assignments": {{"<paper number>": "<cluster label, verbatim>"}}}}
+Every paper number must appear exactly once.""",
+            max_tokens=4000, model=config.XAI_UTIL_MODEL)
+        got.update(data.get("assignments", {}))
+
+    # the model tends to echo "label: scope", so match on the part before the colon
+    valid = {c["label"].lower(): c["label"] for c in clusters}
+    for rec in recs:
+        raw = (got.get(str(rec["num"])) or "").split(":")[0].strip().lower()
+        rec["topic"] = valid.get(raw, "Unclustered")
+        store.save(rec)
+    return {"assigned": sum(1 for r in recs if r.get("topic") != "Unclustered"),
+            "total": len(recs)}

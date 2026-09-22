@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LitDigest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#fff; --ink:#191917; --muted:#6c6b64; --line:#e4e2dc;
+  --accent:#34567d; --accent-soft:#e9eff6; --warn:#8a5a2b; --warn-soft:#f7eee2;
+  --good:#2f6b4f; --bad:#8c3a3a;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.06);
+  --lift:0 18px 60px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
+  --ease:cubic-bezier(.22,.8,.26,1);
+  --ui:"IBM Plex Sans",ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --read:"Source Serif 4",Georgia,"Times New Yorker",serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141417; --card:#1d1d21; --ink:#e9e8e4; --muted:#9b9a93; --line:#2f2f36;
+  --accent:#8db3dd; --accent-soft:#222c39; --warn:#d7aa6c; --warn-soft:#332b1f;
+  --good:#7cc29b; --bad:#d98b8b;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  --lift:0 18px 60px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.4);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15.5px/1.6 var(--ui);-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+a{color:var(--accent)}
+
+/* ---- top bar ---- */
+.bar{position:sticky;top:0;z-index:20;background:var(--bg);
+  border-bottom:1px solid var(--line);padding:14px 20px 10px}
+.bar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.brand{font-weight:600;letter-spacing:-.01em;margin-right:4px}
+.brand small{color:var(--muted);font-weight:400;font-size:13px;margin-left:8px}
+input[type=search]{flex:1;min-width:200px;padding:9px 12px;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:9px}
+input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.btn{background:var(--card);border:1px solid var(--line);color:var(--ink);
+  padding:8px 12px;border-radius:9px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
+  padding:4px 11px;border-radius:999px;font-size:13.5px}
+.chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.count{color:var(--muted);font-size:13.5px;margin-top:8px}
+
+/* ---- grid ---- */
+.grid{display:grid;gap:13px;padding:18px 20px 60px;
+  grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:7px;
+  transition:border-color .12s, transform .12s, box-shadow .12s}
+.card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
+.card h3{margin:0;font-family:var(--read);font-size:17px;line-height:1.32;font-weight:600}
+.meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
+.tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.tag.note{background:var(--warn-soft);color:var(--warn)}
+.tag.must{background:var(--warn-soft);color:var(--warn)}
+.tag.read{background:var(--accent-soft);color:var(--good)}
+.tag.discard{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.claim{margin:0;font-family:var(--read);font-size:15.5px;line-height:1.5}
+.star{background:none;border:none;padding:0 2px;font-size:19px;line-height:1;
+  color:var(--line);transition:color .12s, transform .12s}
+.star:hover{transform:scale(1.15)}
+.star[aria-pressed="true"]{color:#e8b53a}
+.card h3{padding-right:4px}
+.titlerow{display:flex;gap:8px;align-items:flex-start}
+.card.growing .titlerow{padding-right:38px}
+.card.growing .star{font-size:23px;margin-top:2px}
+.titlerow h3{flex:1}
+.notebox{width:100%;min-height:70px;resize:vertical;padding:10px 12px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
+  font:inherit;font-size:15px}
+.notestate{color:var(--muted);font-size:12.5px;margin:6px 0 0;min-height:1.2em}
+.dots{letter-spacing:2px;font-size:13px;color:var(--accent)}
+.ghost{color:var(--muted);font-size:13.5px;font-style:italic}
+
+/* ---- the card growing into a sheet ---- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;
+  transition:opacity .28s var(--ease);z-index:30;backdrop-filter:blur(2px)}
+.scrim.on{opacity:1;pointer-events:auto}
+.card.growing{position:fixed;z-index:40;margin:0;cursor:default;overflow:hidden;
+  display:flex;flex-direction:column;
+  box-shadow:var(--lift);border-color:var(--accent);
+  transition:top .34s var(--ease),left .34s var(--ease),
+             width .34s var(--ease),height .34s var(--ease),
+             padding .34s var(--ease),box-shadow .34s var(--ease)}
+.card.growing:hover{transform:none}
+.card.growing h3{font-size:24px;line-height:1.26;letter-spacing:-.01em;
+  transition:font-size .34s var(--ease)}
+.card.growing .claim{display:none}
+.card.open{padding:26px 30px 30px}
+.placeholder{border:1px dashed var(--line);border-radius:12px;opacity:.5}
+.close{position:absolute;top:14px;right:16px;background:none;border:none;
+  color:var(--muted);font-size:26px;line-height:1;padding:0 4px;z-index:2}
+.close:hover{color:var(--ink)}
+.detail{opacity:0;transition:opacity .2s ease .12s;min-height:0}
+.card.open .detail{overflow-y:auto;flex:1;padding-right:4px}
+.card.open .detail{opacity:1}
+
+/* ---- detail contents ---- */
+section.blk{margin-bottom:18px}
+section.blk h4{margin:0 0 7px;font-family:var(--ui);font-size:11.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);font-weight:600}
+section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16.5px;line-height:1.62}
+#claim p{font-size:21px;line-height:1.4;font-weight:600;letter-spacing:-.005em}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
+.rowbtns .btn[aria-pressed="true"]{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+.eq{background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  padding:14px 10px;overflow-x:auto;text-align:center}
+.terms{margin:8px 0 0;padding-left:18px}
+.terms li{margin-bottom:3px}
+.figs{display:grid;gap:12px}
+.figs figure{margin:0}
+.figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.figs figcaption{color:var(--muted);font-size:13px;margin-top:5px}
+.terms li{font-family:var(--read)}
+.brand{font-family:var(--ui);font-weight:600}
+.qa{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
+.qa h4{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.qa .turn{margin-bottom:14px}
+.qa .q{font-weight:600;margin:0 0 4px}
+.qa .a{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:16px;line-height:1.6}
+.askrow{display:flex;gap:8px;margin-top:10px}
+.askrow input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg);color:var(--ink)}
+
+/* ---- progress ---- */
+.prog{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg)}
+.prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:13.5px;margin-bottom:9px}
+.prog-top b{font-weight:600}
+.prog-top span{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+.track{height:5px;background:var(--line);border-radius:3px;overflow:hidden}
+.fill{height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .4s linear}
+.think{margin:9px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45;
+  max-height:3.6em;overflow:hidden;font-style:italic}
+.spin::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
+  border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;
+  animation:spin .7s linear infinite;vertical-align:-1px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{color:var(--bad);font-size:14px}
+
+@media (prefers-reduced-motion:reduce){
+  .card.growing{transition:none}
+  .scrim{transition:none}
+  .detail{transition:none}
+}
+@media (max-width:620px){
+  .grid{padding:14px 16px 60px}
+  .bar{padding:12px 16px 8px}
+  .card.open{padding:20px 18px 28px}
+  .card.growing h3{font-size:21px}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-row">
+    <span class="brand">LitDigest<small id="src"></small></span>
+    <input type="search" id="q" placeholder="Search title, claim, author, note…" autocomplete="off">
+    <button class="btn" id="reload" title="Re-read the spreadsheet">Reload sheet</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="count" id="count"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+<div class="scrim" id="scrim"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let PAPERS = [], topic = null, starsOnly = false, open = null;
+
+/* ---------- streaming ---------- */
+async function stream(url, body, h){
+  const res = await fetch(url, {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: body ? JSON.stringify(body) : null});
+  if(!res.ok){ h.done({error:'HTTP ' + res.status + ' ' + (await res.text()).slice(0,200)}); return; }
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = '';
+  while(true){
+    const {value, done} = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, {stream:true});
+    const parts = buf.split('\n\n'); buf = parts.pop();
+    for(const p of parts){
+      if(!p.startsWith('data: ')) continue;
+      const msg = JSON.parse(p.slice(6));
+      if(msg.phase && h.phase) h.phase(msg);
+      if(msg.think && h.think) h.think(msg.think);
+      if(msg.t) h.text(msg.t);
+      if(msg.done || msg.error) h.done(msg);
+    }
+  }
+}
+
+function sections(raw){
+  const out = {}, re = /^\[([A-Z][A-Z ]+)\]\s*$/gm;
+  const marks = [...raw.matchAll(re)];
+  marks.forEach((m, i) => {
+    const key = m[1].trim().toLowerCase().replace(/ /g,'_');
+    out[key] = raw.slice(m.index + m[0].length,
+                         i+1 < marks.length ? marks[i+1].index : raw.length).trim();
+  });
+  return out;
+}
+const dots = n => '●'.repeat(n) + '○'.repeat(5-n);
+
+/* ---------- progress ---------- */
+function progress(box, label){
+  box.innerHTML = `<div class="prog">
+    <div class="prog-top"><b class="pl">${label}</b><span class="pt"></span></div>
+    <div class="track"><div class="fill pf"></div></div>
+    <p class="think pk"></p></div>`;
+  const t0 = Date.now();
+  let expected = 60, thought = '', stopped = false;
+  const tick = () => {
+    if(stopped) return;
+    const el = (Date.now()-t0)/1000, pf = box.querySelector('.pf');
+    if(!pf) return;
+    pf.style.width = (Math.min(el/expected,.95)*100).toFixed(1) + '%';
+    box.querySelector('.pt').textContent = `${el.toFixed(0)}s of about ${Math.round(expected)}s`;
+  };
+  const timer = setInterval(tick, 500); tick();
+  const set = (sel, txt) => { const e = box.querySelector(sel); if(e) e.textContent = txt; };
+  return {
+    phase(m){ if(m.expected) expected = m.expected; set('.pl', m.phase); },
+    think(t){ thought = (thought + t).slice(-400);
+              set('.pk', thought.replace(/\s+/g,' ').trim()); },
+    writing(){ set('.pl','writing it up'); set('.pk',''); },
+    stop(){ stopped = true; clearInterval(timer); }
+  };
+}
+
+/* ---------- grid ---------- */
+function starBtn(p){
+  return `<button class="star" data-star="${p.num}" aria-pressed="${p.starred}"
+    title="${p.starred ? 'Starred — highlighted yellow in the spreadsheet'
+                       : 'Star this paper (highlights it yellow in the spreadsheet)'}"
+    >${p.starred ? '★' : '☆'}</button>`;
+}
+
+function cardHtml(p){
+  return `<article class="card" data-num="${p.num}">
+    <div class="titlerow"><h3>${esc(p.title)}</h3>${starBtn(p)}</div>
+    <div class="meta">
+      <span class="tag">${esc(p.topic)}</span>
+      ${p.notes ? '<span class="tag note">your note</span>' : ''}
+      <span>${esc(p.authors)}</span><span>${esc(p.year)}</span>
+      ${p.match==='none' ? '<span class="tag discard">not on arXiv</span>' : ''}
+    </div>
+    ${p.score ? `<div class="dots">${dots(p.score)}</div>` : ''}
+    ${p.claim ? `<p class="claim">${esc(p.claim)}</p>`
+              : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
+  </article>`;
+}
+
+function render(){
+  if(open !== null) return;           // never redraw the grid under an open card
+  const needle = $('#q').value.trim().toLowerCase();
+  const hits = PAPERS.filter(p =>
+    (!topic || p.topic === topic) &&
+    (!starsOnly || p.starred) &&
+    (!needle || needle.split(/\s+/).every(w =>
+      (p.title+' '+p.authors+' '+p.topic+' '+p.claim+' '+p.notes).toLowerCase().includes(w))));
+  hits.sort((a,b) => (b.starred?1:0)-(a.starred?1:0)
+                  || (b.score||0)-(a.score||0) || a.num-b.num);
+  $('#grid').innerHTML = hits.map(cardHtml).join('');
+  $('#count').textContent =
+    `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
+}
+
+function buildChips(){
+  const box = $('#chips'); box.innerHTML = '';
+  const add = (label, on, fn) => {
+    const b = document.createElement('button');
+    b.className='chip'; b.type='button'; b.textContent=label;
+    b.setAttribute('aria-pressed', on ? 'true':'false');
+    b.onclick = () => { fn(); buildChips(); render(); };
+    box.appendChild(b);
+  };
+  [...new Set(PAPERS.map(p=>p.topic))].sort().forEach(t =>
+    add(`${t} (${PAPERS.filter(p=>p.topic===t).length})`, topic===t,
+        () => topic = topic===t ? null : t));
+  const starred = PAPERS.filter(p=>p.starred).length;
+  if(starred) add(`★ starred (${starred})`, starsOnly, () => starsOnly = !starsOnly);
+}
+
+/* ---------- the expand animation ---------- */
+/* transitionend does not fire if a property happens not to change, so the
+   follow-up work is also armed on a timer and runs whichever comes first. */
+function after(el, fn){
+  let done = false;
+  const go = () => { if(done) return; done = true;
+                     el.removeEventListener('transitionend', onEnd); fn(); };
+  const onEnd = e => { if(e.target === el && e.propertyName === 'height') go(); };
+  el.addEventListener('transitionend', onEnd);
+  setTimeout(go, 420);
+}
+
+function targetRect(){
+  const w = Math.min(1040, innerWidth - 40);
+  const h = Math.min(innerHeight - 56, 900);
+  return {left:(innerWidth - w)/2, top:(innerHeight - h)/2, width:w, height:h};
+}
+
+function expand(card){
+  const r = card.getBoundingClientRect();
+  const ph = document.createElement('div');
+  ph.className = 'placeholder';
+  ph.style.height = r.height + 'px';
+  card.parentNode.insertBefore(ph, card);
+  card._ph = ph;
+
+  Object.assign(card.style, {top:r.top+'px', left:r.left+'px',
+                             width:r.width+'px', height:r.height+'px'});
+  card.classList.add('growing');
+  card.offsetHeight;                                   // commit the start frame
+  const t = targetRect();
+  Object.assign(card.style, {top:t.top+'px', left:t.left+'px',
+                             width:t.width+'px', height:t.height+'px'});
+  const opened = () => card.classList.add('open');
+  after(card, opened);
+}
+
+function collapse(){
+  const card = document.querySelector('.card.growing');
+  if(!card) return;
+  const num = open; open = null;
+  const ph = card._ph;
+  const r = ph ? ph.getBoundingClientRect() : card.getBoundingClientRect();
+  card.classList.remove('open');
+  card.scrollTop = 0;
+  const detail = card.querySelector('.detail');
+  if(detail) detail.remove();
+  const close = card.querySelector('.close');
+  if(close) close.remove();
+  Object.assign(card.style, {top:r.top+'px', left:r.left+'px',
+                             width:r.width+'px', height:r.height+'px'});
+  $('#scrim').classList.remove('on');
+  after(card, () => {
+    card.classList.remove('growing');
+    card.removeAttribute('style');
+    if(ph) ph.remove();
+    render();
+  });
+}
+
+function openCard(num){
+  if(open !== null) return;
+  const card = document.querySelector(`.card[data-num="${num}"]`);
+  if(!card) return;
+  open = num;
+  $('#scrim').classList.add('on');
+
+  const close = document.createElement('button');
+  close.className = 'close'; close.setAttribute('aria-label','Close');
+  close.textContent = '×';
+  close.onclick = e => { e.stopPropagation(); collapse(); };
+  card.appendChild(close);
+
+  const detail = document.createElement('div');
+  detail.className = 'detail';
+  card.appendChild(detail);
+
+  expand(card);
+  fillDetail(num, detail);
+}
+
+/* ---------- detail ---------- */
+function glanceHtml(s){
+  return `
+  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(s.claim||'')}</p></section>
+  <section class="blk"><h4>Worth it</h4>
+    <div class="dots">${s.score ? dots(+s.score) : ''}</div>
+    <p>${esc(s.verdict||'')}</p></section>
+  <section class="blk"><h4>The trick</h4><p>${esc(s.trick||'')}</p></section>
+  <section class="blk"><h4>Holds up?</h4><p>${esc(s.holds_up||'')}</p></section>`;
+}
+function deepHtml(s){
+  const terms = (s.terms||'').split('\n').filter(Boolean)
+    .map(t => `<li>${esc(t.replace(/^[-*]\s*/,''))}</li>`).join('');
+  return `
+  <section class="blk"><h4>What you already know</h4><p>${esc(s.setup||'')}</p></section>
+  <section class="blk"><h4>Mechanism</h4><p>${esc(s.mechanism||'')}</p></section>
+  ${s.equation ? `<section class="blk"><h4>Central equation</h4>
+     <div class="eq"></div>${terms ? `<ul class="terms">${terms}</ul>`:''}</section>` : ''}
+  <section class="blk"><h4>Limits</h4><p>${esc(s.limits||'')}</p></section>
+  <section class="blk"><h4>How you'd use it</h4><p>${esc(s.use||'')}</p></section>`;
+}
+function renderEquation(root, tex, macros){
+  const el = root.querySelector('.eq');
+  if(!el || !window.katex || !tex) return;
+  try{ katex.render(tex.replace(/^\$+|\$+$/g,'').trim(), el,
+        {displayMode:true, throwOnError:false, macros: macros||{}}); }
+  catch(e){ el.textContent = tex; }
+}
+
+async function fillDetail(num, root){
+  const p = PAPERS.find(x=>x.num===num);
+  root.innerHTML = `
+    <div class="meta" style="margin-top:8px">
+      ${p.abs_url ? `<a href="${esc(p.abs_url)}" target="_blank" rel="noopener">arXiv:${esc(p.arxiv_id)}</a>`:''}
+    </div>
+    <section class="blk" style="margin-top:14px">
+      <h4>Your note <span style="text-transform:none;letter-spacing:0;font-weight:400">— saved into the spreadsheet</span></h4>
+      <textarea class="notebox" placeholder="What you thought of it…">${esc(p.notes||'')}</textarea>
+      <p class="notestate"></p>
+    </section>
+    <div class="glance"></div><div class="deepwrap"></div><div class="qa"></div>`;
+
+  const note = root.querySelector('.notebox'), state = root.querySelector('.notestate');
+  let saved = p.notes || '';
+  const saveNote = async () => {
+    const text = note.value.trim();
+    if(text === saved) return;
+    state.textContent = 'saving…';
+    const res = await fetch(`/api/papers/${num}/note`, {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+    if(!res.ok){ state.textContent = 'could not write to the spreadsheet'; return; }
+    saved = text; p.notes = text;
+    state.textContent = 'written to the spreadsheet';
+    setTimeout(() => { if(state.textContent === 'written to the spreadsheet') state.textContent = ''; }, 2200);
+  };
+  note.addEventListener('blur', saveNote);
+  note.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && (e.metaKey || e.ctrlKey)){ e.preventDefault(); note.blur(); }
+  });
+
+  const data = await (await fetch(`/api/papers/${num}`)).json();
+  if(data.glance) showGlance(num, root, sections(data.glance.raw||''), data);
+  else runGlance(num, root, data);
+  renderQA(num, root, data.chat||[]);
+}
+
+function showGlance(num, root, s, data){
+  root.querySelector('.glance').innerHTML = glanceHtml(s);
+  const wrap = root.querySelector('.deepwrap');
+  if(data.deep){
+    const d = sections(data.deep.raw||'');
+    wrap.innerHTML = deepHtml(d);
+    renderEquation(wrap, d.equation, data.macros);
+    showFigures(wrap, data);
+  }else{
+    wrap.innerHTML = `<div class="rowbtns">
+      <button class="btn primary" data-go="deep">Go deeper — mechanism, equation, figures</button>
+      <button class="btn" data-go="again">Regenerate</button></div>`;
+    wrap.querySelector('[data-go="deep"]').onclick = () => runDeep(num, root);
+    wrap.querySelector('[data-go="again"]').onclick = () => runGlance(num, root, data);
+  }
+}
+
+function showFigures(wrap, data){
+  if(!data.figures || !data.figures.length) return;
+  wrap.insertAdjacentHTML('beforeend',
+    `<section class="blk"><h4>Figures</h4><div class="figs">${
+      data.figures.map(f => `<figure><img loading="lazy" src="/fig/${encodeURIComponent(f.file)}" alt="">
+        <figcaption>${esc(f.caption)}</figcaption></figure>`).join('')}</div></section>`);
+}
+
+function runGlance(num, root, data){
+  const box = root.querySelector('.glance');
+  const pr = progress(box, 'starting');
+  let raw = '';
+  stream(`/api/papers/${num}/glance`, null, {
+    phase: m => pr.phase(m),
+    think: t => pr.think(t),
+    text: t => { if(!raw) pr.writing(); raw += t; box.innerHTML = glanceHtml(sections(raw)); },
+    done: msg => {
+      pr.stop();
+      if(msg.error){ box.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
+      const p = PAPERS.find(x=>x.num===num), s = sections(raw);
+      p.claim = s.claim || ''; p.score = +s.score || null; p.has_glance = true;
+      showGlance(num, root, s, data);
+    }});
+}
+
+function runDeep(num, root){
+  const wrap = root.querySelector('.deepwrap');
+  const pr = progress(wrap, 'starting');
+  let raw = '';
+  stream(`/api/papers/${num}/deep`, null, {
+    phase: m => pr.phase(m),
+    think: t => pr.think(t),
+    text: t => { if(!raw) pr.writing(); raw += t; wrap.innerHTML = deepHtml(sections(raw)); },
+    done: async msg => {
+      pr.stop();
+      if(msg.error){ wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
+      const data = await (await fetch(`/api/papers/${num}`)).json();
+      const d = sections(raw);
+      wrap.innerHTML = deepHtml(d);
+      renderEquation(wrap, d.equation, data.macros);
+      showFigures(wrap, data);
+      PAPERS.find(x=>x.num===num).has_deep = true;
+    }});
+}
+
+function renderQA(num, root, chat){
+  const qa = root.querySelector('.qa');
+  qa.innerHTML = `<h4>Ask this paper</h4>
+     <div class="turns">${chat.map(t =>
+       `<div class="turn"><p class="q">${esc(t.q)}</p><p class="a">${esc(t.a)}</p></div>`).join('')}</div>
+     <div class="askrow">
+       <input class="askbox" placeholder="e.g. does this assume periodic boundaries?">
+       <button class="btn primary">Ask</button>
+     </div>`;
+  const box = qa.querySelector('.askbox');
+  const send = () => {
+    const q = box.value.trim(); if(!q) return;
+    box.value = '';
+    const div = document.createElement('div');
+    div.className = 'turn';
+    div.innerHTML = `<p class="q">${esc(q)}</p><p class="a spin"></p>`;
+    qa.querySelector('.turns').appendChild(div);
+    const a = div.querySelector('.a');
+    let raw = '';
+    stream(`/api/papers/${num}/ask`, {question:q}, {
+      think: t => { if(!raw) a.textContent = ('thinking: ' + t).slice(0,160); },
+      text: t => { raw += t; a.classList.remove('spin'); a.textContent = raw; },
+      done: msg => { if(msg.error) a.innerHTML = `<span class="err">${esc(msg.error)}</span>`; }});
+  };
+  qa.querySelector('.btn').onclick = send;
+  box.addEventListener('keydown', e => { if(e.key==='Enter') send(); });
+}
+
+/* ---------- wiring ---------- */
+async function toggleStar(num, btn){
+  const p = PAPERS.find(x => x.num === num);
+  const want = !p.starred;
+  const res = await fetch(`/api/papers/${num}/star`, {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({starred: want})});
+  if(!res.ok){ btn.title = 'could not write to the spreadsheet'; return; }
+  p.starred = want;
+  btn.setAttribute('aria-pressed', String(want));
+  btn.textContent = want ? '★' : '☆';
+  buildChips();
+}
+
+$('#grid').addEventListener('click', e => {
+  const s = e.target.closest('[data-star]');
+  if(s){ e.stopPropagation(); toggleStar(+s.dataset.star, s); return; }
+  if(e.target.closest('.card.growing')) return;      // clicks inside an open card
+  const card = e.target.closest('.card');
+  if(card) openCard(+card.dataset.num);
+});
+$('#scrim').onclick = collapse;
+document.addEventListener('keydown', e => { if(e.key==='Escape') collapse(); });
+addEventListener('resize', () => {
+  const card = document.querySelector('.card.growing');
+  if(!card) return;
+  const t = targetRect();
+  Object.assign(card.style, {top:t.top+'px', left:t.left+'px',
+                             width:t.width+'px', height:t.height+'px'});
+});
+$('#q').addEventListener('input', render);
+$('#reload').onclick = () => boot();
+async function boot(){
+  const d = await (await fetch('/api/papers')).json();
+  PAPERS = d.papers;
+  $('#src').textContent = d.model + ' · ' + d.source.split('/').pop()
+    + (d.added ? ` · ${d.added} new` : '');
+  buildChips(); render();
+}
+boot();
+</script>
+</body>
+</html>
