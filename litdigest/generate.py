@@ -27,8 +27,8 @@ Rules:
 - Write the way a knowledgeable colleague talks: continuous prose, complete
   sentences that follow from one another, ordinary connectives (so, but, because,
   which means) where they carry the argument. Vary the sentence length.
-- Do not write in clipped fragments, and do not stack one bare assertion per line.
-  Each section is a short paragraph, not a list of statements.
+- Give each section as bullet points, one per line, each starting with "- ".
+  A bullet is a proper sentence or two, not a fragment: it should read aloud.
 - Stay brief and concrete, but never at the cost of sounding like a machine. If a
   sentence reads like a telegram, write it out properly instead.
 - Output ONLY the tagged sections below, in order, nothing before or after. No markdown."""
@@ -39,11 +39,11 @@ A claim, not a topic.
 [SCORE]
 A single integer 1-5. 5 = drop everything and read it. 1 = skip, nothing here for you.
 [VERDICT]
-A couple of sentences: whether to read it and why, and what to look at first -- name the
-section, theorem or figure -- if they only give it ten minutes.
+Two bullets. The first: whether to read it, and why. The second: what to look at first --
+name the section, theorem or figure -- if they only give it ten minutes.
 [TRICK]
-A short paragraph, two or three sentences: the mechanism that makes it work, told well
-enough that they could re-derive the result. Not a restatement of the abstract.
+Two or three bullets: the mechanism that makes it work, told well enough that they could
+re-derive the result. Not a restatement of the abstract.
 [HOLDS UP]
 One sentence: the weakest assumption, or the thing left untested."""
 
@@ -52,20 +52,24 @@ DEEP_SYS = GLANCE_SYS.replace(
     "explains how it actually works, at the level of someone who will implement it")
 
 DEEP_FMT = r"""[SETUP]
-Two sentences: the standard result this paper departs from, and why it is not enough here.
+Two bullets: the standard result this paper departs from, and why it is not enough here.
 [MECHANISM]
-A paragraph of four to six sentences: how the method works, where the difficulty is, and how
-they get past it. Specific about the mathematics, and still readable straight through.
+Four to six bullets: how the method works, where the difficulty is, and how they get past
+it, in order. Specific about the mathematics, and each bullet readable on its own.
+Where a point is what a figure shows, say so by number -- "Figure 3" -- so the figure can
+be put beside it.
 [EQUATION]
 The single central equation, as LaTeX only -- no $ delimiters, no \begin{equation} wrapper,
 no \label. If the source equations are supplied below, copy the relevant one verbatim,
 preserving the author's macros. If none is supplied, write nothing after this tag.
 [TERMS]
-One symbol per line, formatted `symbol -- what it denotes`. Only symbols in the equation above.
+One symbol per line, formatted `\\(symbol\\) -- what it denotes`, with the symbol in the
+same \\( \\) delimiters as everywhere else. Only symbols that appear in the equation above.
 [LIMITS]
-Two or three sentences: the assumptions doing the heavy lifting, and what went untested.
+Two or three bullets: the assumptions doing the heavy lifting, and what went untested.
+Name the figure by number where one is the evidence.
 [USE]
-Two sentences: how this researcher would apply or extend it, concretely."""
+Two bullets: how this researcher would apply or extend it, concretely."""
 
 
 def _context(rec: dict, *, full: bool) -> str:

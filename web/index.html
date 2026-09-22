@@ -39,21 +39,25 @@ a{color:var(--accent)}
 .bar{position:sticky;top:0;z-index:20;background:var(--bg);
   border-bottom:1px solid var(--line);padding:14px 20px 10px}
 .bar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.brand{font-weight:600;letter-spacing:-.01em;margin-right:4px}
-.brand small{color:var(--muted);font-weight:400;font-size:14px;margin-left:8px}
-input[type=search]{flex:1;min-width:200px;padding:9px 12px;color:var(--ink);
+.brand{font-weight:700;font-size:21px;letter-spacing:-.015em;margin-right:6px}
+.brand small{color:var(--muted);font-weight:400;font-size:14.5px;margin-left:9px}
+input[type=search]{flex:1;min-width:220px;padding:11px 14px;font-size:17px;color:var(--ink);
   background:var(--card);border:1px solid var(--line);border-radius:9px}
 input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .btn{background:var(--card);border:1px solid var(--line);color:var(--ink);
-  padding:8px 12px;border-radius:9px}
+  padding:10px 14px;font-size:16.5px;border-radius:9px}
 .btn:hover{border-color:var(--accent)}
-select.btn{padding:8px 10px;cursor:pointer}
+.meta-row{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:9px}
+.sortwrap{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:15px;white-space:nowrap}
+.sortwrap select{font:inherit;font-size:15px;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:8px;padding:5px 8px;cursor:pointer}
+.sortwrap select:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
-  padding:5px 12px;border-radius:999px;font-size:13.5px}
+  padding:6px 13px;border-radius:999px;font-size:15px}
 .chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
-.count{color:var(--muted);font-size:13.5px;margin-top:8px}
+.count{color:var(--muted);font-size:15px}
 
 /* ---- grid ---- */
 .grid{display:grid;gap:13px;padding:18px 20px 60px;
@@ -124,9 +128,13 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
   border-color:var(--accent);color:var(--accent)}
 .eq{background:var(--bg);border:1px solid var(--line);border-radius:9px;
   padding:14px 10px;overflow-x:auto;text-align:center}
+.points{margin:0;padding-left:22px}
+.points li{margin-bottom:8px;font-family:var(--read);font-size:18px;line-height:1.6}
+.points li:last-child{margin-bottom:0}
 .terms{margin:8px 0 0;padding-left:18px}
 .terms li{margin-bottom:3px}
 .figs{display:grid;gap:12px}
+.figs.inline{margin:14px 0 4px}
 .figs figure{margin:0}
 .figs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
 .figs figcaption{color:var(--muted);font-size:16px;line-height:1.5;margin-top:8px}
@@ -177,19 +185,23 @@ section.blk p{margin:0;white-space:pre-wrap;font-family:var(--read);font-size:18
   <div class="bar-row">
     <span class="brand">LitDigest<small id="src"></small></span>
     <input type="search" id="q" placeholder="Search title, claim, author, note…" autocomplete="off">
-    <select class="btn" id="sort" title="How to order the cards">
-      <option value="sheet">Spreadsheet order</option>
-      <option value="score">Best first</option>
-      <option value="starred">Starred first</option>
-      <option value="unread">Unread first</option>
-      <option value="year">Newest first</option>
-      <option value="title">Title A–Z</option>
-    </select>
     <button class="btn" id="reload" title="Re-read the spreadsheet">Reload sheet</button>
     <button class="btn" id="quit" title="Stop the LitDigest server">Quit</button>
   </div>
   <div class="chips" id="chips"></div>
-  <div class="count" id="count"></div>
+  <div class="meta-row">
+    <div class="count" id="count"></div>
+    <label class="sortwrap">Sort
+      <select id="sort" title="How to order the cards">
+        <option value="sheet">Spreadsheet order</option>
+        <option value="score">Best first</option>
+        <option value="starred">Starred first</option>
+        <option value="unread">Unread first</option>
+        <option value="year">Newest first</option>
+        <option value="title">Title A–Z</option>
+      </select>
+    </label>
+  </div>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -431,25 +443,93 @@ function openCard(num){
    newline inside one is an artifact. */
 const prose = t => String(t || '').replace(/\s*\n+\s*/g, ' ').trim();
 
+/* Sections are bullets. Digests written before that was asked for are single
+   paragraphs, so they are split at sentence ends -- taking care not to break on
+   "Fig. 7" or a decimal, and gluing back any fragment too short to stand alone. */
+const ABBREV = /\b(?:Fig|Figs|Eq|Eqs|Sec|Secs|No|St|cf|vs|al|approx|Prop|Thm|Lem|Ref|Refs|Ch|pp)\.$/;
+
+function bullets(text){
+  const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  if(lines.length && lines.every(l => /^[-*\u2022]\s/.test(l)))
+    return lines.map(l => l.replace(/^[-*\u2022]\s*/, ''));
+
+  const flat = prose(text);
+  if(!flat) return [];
+  const out = [];
+  for(const part of flat.split(/(?<=[.!?])\s+(?=[A-Z(\\])/)){
+    const last = out[out.length - 1];
+    if(last && (ABBREV.test(last) || last.length < 30)) out[out.length - 1] = last + ' ' + part;
+    else out.push(part);
+  }
+  return out;
+}
+
+const points = text => {
+  const xs = bullets(text);
+  return xs.length ? `<ul class="points">${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
+                   : '';
+};
+
 function glanceHtml(s){
   return `
   <section class="blk" id="claim"><h4>Claim</h4><p>${esc(prose(s.claim||''))}</p></section>
   <section class="blk"><h4>Worth it</h4>
     <div class="dots">${s.score ? dots(+s.score) : ''}</div>
-    <p>${esc(prose(s.verdict||''))}</p></section>
-  <section class="blk"><h4>The trick</h4><p>${esc(prose(s.trick||''))}</p></section>
-  <section class="blk"><h4>Holds up?</h4><p>${esc(prose(s.holds_up||''))}</p></section>`;
+    ${points(s.verdict)}</section>
+  <section class="blk"><h4>The trick</h4>${points(s.trick)}</section>
+  <section class="blk"><h4>Holds up?</h4>${points(s.holds_up)}</section>`;
 }
-function deepHtml(s){
-  const terms = (s.terms||'').split('\n').filter(Boolean)
-    .map(t => `<li>${esc(t.replace(/^[-*]\s*/,''))}</li>`).join('');
+const figNum = f => {
+  const m = String(f.caption || '').match(/fig(?:ure)?\.?\s*(\d+)/i);
+  return m ? +m[1] : null;
+};
+
+/* "Figure 8", "Figs. 7-8", "fig 3" -- the numbers a passage sends you to. */
+function figureRefs(text){
+  const out = new Set();
+  for(const m of String(text || '').matchAll(/fig(?:ure)?s?\.?\s*(\d+)\s*(?:[-\u2013\u2014]\s*(\d+))?/gi)){
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    for(let n = a; n <= b && n - a < 8; n++) out.add(n);
+  }
+  return out;
+}
+
+const figureMarkup = f =>
+  `<figure><img loading="lazy" src="/fig/${encodeURIComponent(f.file)}" alt="">
+     <figcaption>${esc(f.caption)}</figcaption></figure>`;
+
+/* Any figure this passage names, shown right under it rather than saved up for
+   the end, so the argument and its picture stay together. */
+function figuresFor(text, data, used){
+  if(!data || !data.figures || !data.figures.length) return '';
+  const want = figureRefs(text);
+  const picked = data.figures.filter(f => {
+    const n = figNum(f);
+    return n && want.has(n) && !used.has(f.file);
+  });
+  picked.forEach(f => used.add(f.file));
+  return picked.length ? `<div class="figs inline">${picked.map(figureMarkup).join('')}</div>` : '';
+}
+
+function deepHtml(s, data, used){
+  // each line is "symbol -- meaning"; the symbol is LaTeX whether or not the
+  // model remembered to delimit it
+  const terms = (s.terms||'').split('\n').filter(Boolean).map(t => {
+    const line = t.replace(/^[-*]\s*/, '').trim();
+    const m = line.match(/^(.+?)\s+--+\s+(.*)$/);
+    if(!m) return `<li>${esc(line)}</li>`;
+    const sym = (/[\\^_{}]/.test(m[1]) && !m[1].includes('\\(')) ? `\\(${m[1]}\\)` : m[1];
+    return `<li>${esc(sym)} — ${esc(m[2])}</li>`;
+  }).join('');
+  const seen = used || new Set();
+  const fig = t => figuresFor(t, data, seen);
   return `
-  <section class="blk"><h4>What you already know</h4><p>${esc(prose(s.setup||''))}</p></section>
-  <section class="blk"><h4>Mechanism</h4><p>${esc(prose(s.mechanism||''))}</p></section>
+  <section class="blk"><h4>What you already know</h4>${points(s.setup)}${fig(s.setup)}</section>
+  <section class="blk"><h4>Mechanism</h4>${points(s.mechanism)}${fig(s.mechanism)}</section>
   ${s.equation ? `<section class="blk"><h4>Central equation</h4>
      <div class="eq"></div>${terms ? `<ul class="terms">${terms}</ul>`:''}</section>` : ''}
-  <section class="blk"><h4>Limits</h4><p>${esc(prose(s.limits||''))}</p></section>
-  <section class="blk"><h4>How you'd use it</h4><p>${esc(prose(s.use||''))}</p></section>`;
+  <section class="blk"><h4>Limits</h4>${points(s.limits)}${fig(s.limits)}</section>
+  <section class="blk"><h4>How you'd use it</h4>${points(s.use)}${fig(s.use)}</section>`;
 }
 /* Maths inside prose. The model is asked for $...$, but digests written before
    that instruction have bare fragments like C(|h|+x)^{3/2}, so a token carrying
@@ -498,7 +578,7 @@ function wrapBareMath(text){
 
 function renderMath(root, macros){
   if(!window.renderMathInElement) return;
-  root.querySelectorAll('section.blk p, .qa .a, .terms li, .card .claim').forEach(el => {
+  root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li, .card .claim').forEach(el => {
     if(el.dataset.mathed) return;
     const t = legacyDollars(el.textContent);
     el.textContent = BARE_MATH.test(t) ? wrapBareMath(t) : t;
@@ -565,11 +645,11 @@ function showGlance(num, root, s, data){
   renderMath(root.querySelector('.glance'), data.macros);
   const wrap = root.querySelector('.deepwrap');
   if(data.deep){
-    const d = sections(data.deep.raw||'');
-    wrap.innerHTML = deepHtml(d);
+    const d = sections(data.deep.raw||''), used = new Set();
+    wrap.innerHTML = deepHtml(d, data, used);
     renderEquation(wrap, d.equation, data.macros);
     renderMath(wrap, data.macros);
-    showFigures(wrap, data);
+    showFigures(wrap, data, used);
   }else{
     wrap.innerHTML = `<div class="rowbtns">
       <button class="btn primary" data-go="deep">Go deeper — mechanism, equation, figures</button>
@@ -579,12 +659,12 @@ function showGlance(num, root, s, data){
   }
 }
 
-function showFigures(wrap, data){
-  if(!data.figures || !data.figures.length) return;
+function showFigures(wrap, data, used){
+  const rest = (data.figures || []).filter(f => !used || !used.has(f.file));
+  if(!rest.length) return;
   wrap.insertAdjacentHTML('beforeend',
-    `<section class="blk"><h4>Figures</h4><div class="figs">${
-      data.figures.map(f => `<figure><img loading="lazy" src="/fig/${encodeURIComponent(f.file)}" alt="">
-        <figcaption>${esc(f.caption)}</figcaption></figure>`).join('')}</div></section>`);
+    `<section class="blk"><h4>${used && used.size ? 'Other figures' : 'Figures'}</h4>
+       <div class="figs">${rest.map(figureMarkup).join('')}</div></section>`);
 }
 
 function runGlance(num, root, data){
@@ -616,11 +696,11 @@ function runDeep(num, root){
       pr.stop();
       if(msg.error){ wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
       const data = await (await fetch(`/api/papers/${num}`)).json();
-      const d = sections(raw);
-      wrap.innerHTML = deepHtml(d);
+      const d = sections(raw), used = new Set();
+      wrap.innerHTML = deepHtml(d, data, used);
       renderEquation(wrap, d.equation, data.macros);
       renderMath(wrap, data.macros);
-      showFigures(wrap, data);
+      showFigures(wrap, data, used);
       PAPERS.find(x=>x.num===num).has_deep = true;
     }});
 }
