@@ -80,9 +80,7 @@ def _events(make_parts, num: int, key: str, prep=None):
         parsed.update(raw=raw, model=config.XAI_MODEL,
                       seconds=round(time.time() - t0, 1),
                       generated_at=dt.datetime.now().isoformat(timespec="seconds"))
-        fresh = store.load(num)
-        fresh[key] = parsed
-        store.save(fresh)
+        store.update(num, lambda r: r.update({key: parsed}))
         yield f"data: {json.dumps({'done': True, 'parsed': parsed})}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream",
@@ -154,13 +152,13 @@ def prepare(num: int):
     """Resolve on arXiv and pull the PDF text -- whatever is still missing."""
     rec = _rec(num)
     if rec.get("arxiv", {}).get("match_status") not in config.RESOLVED:
-        rec["arxiv"] = arxiv.find(rec["title"])
-        store.save(rec)
+        found = arxiv.find(rec["title"])
+        rec = store.update(num, lambda r: r.update(arxiv=found))
     if rec["arxiv"]["match_status"] == "none":
         raise HTTPException(422, "arXiv has no paper under this title")
     if not rec.get("text"):
-        rec["text"] = extract.sections(extract.pdf_text(rec))
-        store.save(rec)
+        text = extract.sections(extract.pdf_text(rec))
+        rec = store.update(num, lambda r: r.update(text=text))
     return {"ready": True, "chars": rec["text"]["chars"]}
 
 
@@ -171,18 +169,20 @@ def glance(num: int):
                    prep=lambda: prepare(num))
 
 
+def _prep_deep(num: int) -> None:
+    """The LaTeX source and the figures, both downloads, so merged in afterwards."""
+    prepare(num)
+    rec = generate.prepare_equations(store.load(num))
+    if "figures" not in rec:
+        rec["figures"] = figures.extract(rec["arxiv"]["id"])
+    got = {k: rec[k] for k in ("equations", "macros", "figures") if k in rec}
+    store.update(num, lambda r: r.update(got))
+
+
 @app.post("/api/papers/{num}/deep")
 def deep(num: int):
     _rec(num)
-
-    def prep():
-        prepare(num)
-        rec = generate.prepare_equations(store.load(num))
-        if "figures" not in rec:
-            rec["figures"] = figures.extract(rec["arxiv"]["id"])
-        store.save(rec)
-
-    return _events(generate.stream_deep, num, "deep", prep=prep)
+    return _events(generate.stream_deep, num, "deep", prep=lambda: _prep_deep(num))
 
 
 @app.post("/api/papers/{num}/ask")
@@ -201,9 +201,8 @@ def ask(num: int, question: str = Body(..., embed=True)):
                 continue
             buf.append(piece)
             yield f"data: {json.dumps({'t': piece})}\n\n"
-        fresh = store.load(num)
-        fresh.setdefault("chat", []).append({"q": question, "a": "".join(buf)})
-        store.save(fresh)
+        turn = {"q": question, "a": "".join(buf)}
+        store.update(num, lambda r: r.setdefault("chat", []).append(turn))
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(relay(), media_type="text/event-stream",
@@ -214,22 +213,21 @@ def ask(num: int, question: str = Body(..., embed=True)):
 @app.post("/api/papers/{num}/note")
 def note(num: int, text: str = Body(..., embed=True)):
     """Save a note and write it straight into the spreadsheet's Notes column."""
-    rec = _rec(num)
+    _rec(num)
     if not sheet.set_note(num, text):
-        raise HTTPException(422, "could not find this paper's row in the spreadsheet")
-    rec["notes"] = text
-    store.save(rec)
+        raise HTTPException(422, "could not find this paper's row, or a Notes column, "
+                                 "in the spreadsheet")
+    store.update(num, lambda r: r.update(notes=text))
     return {"num": num, "notes": text}
 
 
 @app.post("/api/papers/{num}/star")
 def star(num: int, starred: bool = Body(..., embed=True)):
     """Star a paper, which fills its Title cell yellow in the spreadsheet."""
-    rec = _rec(num)
+    _rec(num)
     if not sheet.set_star(num, starred):
         raise HTTPException(422, "could not find this paper's row in the spreadsheet")
-    rec["starred"] = starred
-    store.save(rec)
+    store.update(num, lambda r: r.update(starred=starred))
     return {"num": num, "starred": starred}
 
 

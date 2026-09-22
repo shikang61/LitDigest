@@ -152,14 +152,13 @@ def run(force: bool = False, limit: int | None = None) -> dict:
         todo = todo[:limit]
     for rec in todo:
         try:
-            rec["arxiv"] = find(rec["title"])
+            found = find(rec["title"])
         except Exception as exc:                       # network/parse failure
-            store.note_error(rec, "match", exc)
-            store.save(rec)
+            store.update(rec["num"], lambda r: store.note_error(r, "match", exc))
             continue
-        counts[rec["arxiv"]["match_status"]] += 1
-        store.save(rec)
-        print(f"  [{rec['num']:>3}] {rec['arxiv']['match_status']:<5} "
-              f"{rec['arxiv'].get('id','-'):<14} {rec['title'][:60]}", flush=True)
+        counts[found["match_status"]] += 1
+        store.update(rec["num"], lambda r: r.update(arxiv=found))
+        print(f"  [{rec['num']:>3}] {found['match_status']:<5} "
+              f"{found.get('id','-'):<14} {rec['title'][:60]}", flush=True)
     counts["skipped"] = sum(1 for _ in store.all_records()) - len(todo)
     return counts

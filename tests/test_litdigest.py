@@ -249,3 +249,54 @@ def test_health_answers_without_reading_the_spreadsheet(monkeypatch):
         assert r.status_code == 200 and r.json() == {"ok": True}
         with pytest.raises(AssertionError):
             client.get("/api/papers")          # the expensive one, for contrast
+
+
+def test_a_note_saved_during_deep_prep_survives(tmp_path, monkeypatch):
+    """Clicking Go deeper blurs the note box, so the note and the deep read reach the
+    server together. Deep prep used to load the record, spend seconds downloading
+    the LaTeX source and figures, then save what it loaded -- undoing the note."""
+    import server
+    from litdigest import config, figures, sheet, store
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path)
+    monkeypatch.setattr(sheet, "set_note", lambda num, text: True)
+    store.save({"num": 1, "title": "t", "notes": "", "text": {"intro": "x", "chars": 1},
+                "arxiv": {"id": "2501.00001", "match_status": "ok"}, "equations": []})
+
+    def slow_download(aid):
+        server.note(1, text="typed meanwhile")       # lands mid-download
+        return [{"file": "f.png"}]
+    monkeypatch.setattr(figures, "extract", slow_download)
+
+    server._prep_deep(1)
+    rec = store.load(1)
+    assert rec["notes"] == "typed meanwhile"
+    assert rec["figures"] == [{"file": "f.png"}]
+
+
+def test_deleting_a_note_clears_the_spreadsheet_cell(tmp_path, monkeypatch):
+    from litdigest import config, sheet
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Num", "Title", "Notes"])
+    ws.append([1, "A paper", "old note"])
+    path = tmp_path / "s.xlsx"
+    wb.save(path)
+    monkeypatch.setattr(config, "SOURCE_XLSX", path)
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "bk")
+
+    assert sheet.set_note(1, "")
+    assert load_workbook(path).active.cell(2, 3).value is None
+
+
+def test_a_note_cannot_be_written_without_a_notes_column(tmp_path, monkeypatch):
+    from litdigest import config, sheet
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Num", "Title"])
+    ws.append([1, "A paper"])
+    path = tmp_path / "s.xlsx"
+    wb.save(path)
+    monkeypatch.setattr(config, "SOURCE_XLSX", path)
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "bk")
+
+    assert sheet.set_note(1, "a note") is False

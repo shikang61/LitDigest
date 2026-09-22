@@ -193,15 +193,13 @@ def warm(limit: int | None = None, force: bool = False) -> dict:
 
     def one(rec):
         if not rec.get("text"):
-            rec["text"] = extract.sections(extract.pdf_text(rec))
-            store.save(rec)
+            text = extract.sections(extract.pdf_text(rec))
+            rec = store.update(rec["num"], lambda r: r.update(text=text))
         raw = "".join(x for k, x in stream_glance(rec) if k == "say")
         parsed = parse(raw)
         parsed["raw"] = raw
         parsed["model"] = config.XAI_MODEL
-        fresh = store.load(rec["num"])
-        fresh["glance"] = parsed
-        store.save(fresh)
+        store.update(rec["num"], lambda r: r.update(glance=parsed))
         return parsed
 
     counts = {"ok": 0, "failed": 0}
@@ -215,8 +213,7 @@ def warm(limit: int | None = None, force: bool = False) -> dict:
                 print(f"  [{rec['num']:>3}] {p.get('score','?')}/5  "
                       f"{(p.get('claim') or '')[:70]}", flush=True)
             except Exception as exc:
-                store.note_error(rec, "glance", exc)
-                store.save(rec)
+                store.update(rec["num"], lambda r: store.note_error(r, "glance", exc))
                 counts["failed"] += 1
                 print(f"  [{rec['num']:>3}] FAIL {str(exc)[:80]}", flush=True)
     return counts

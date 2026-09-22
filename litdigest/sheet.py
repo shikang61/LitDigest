@@ -69,13 +69,14 @@ def _backup_once() -> None:
     _backed_up = True
 
 
-def _write(num: int, apply) -> bool:
+def _write(num: int, column: str, apply) -> bool:
+    """False, and nothing written, if the paper's row or the column is missing."""
     with _lock:
         wb = load_workbook(config.SOURCE_XLSX)
         ws = wb[wb.sheetnames[0]]
         cols = columns(ws)
         row = _row_for(ws, cols, num)
-        if row is None:
+        if row is None or column not in cols:
             return False
         _backup_once()
         apply(ws, cols, row)
@@ -85,11 +86,13 @@ def _write(num: int, apply) -> bool:
 
 def set_note(num: int, text: str) -> bool:
     def apply(ws, cols, row):
-        ws.cell(row, cols["notes"], text or None)
-    return "notes" and _write(num, apply)
+        # not ws.cell(row, col, None): openpyxl ignores a None value there, so a
+        # deleted note would stay in the spreadsheet
+        ws.cell(row, cols["notes"]).value = text or None
+    return _write(num, "notes", apply)
 
 
 def set_star(num: int, starred: bool) -> bool:
     def apply(ws, cols, row):
         ws.cell(row, cols["title"]).fill = STAR_FILL if starred else CLEAR_FILL
-    return _write(num, apply)
+    return _write(num, "title", apply)

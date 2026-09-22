@@ -86,13 +86,15 @@ def main() -> None:
     if a.cmd == "topics":
         return print(llm.assign_topics())
     if a.cmd == "pin":
-        rec = store.load(a.num)
-        if rec is None:
+        if store.load(a.num) is None:
             return print(f"no paper {a.num}")
-        rec["arxiv"] = arxiv.fetch_by_id(a.arxiv_id)
-        rec.pop("text", None)
-        store.save(rec)
-        return print(f"[{a.num}] pinned to {a.arxiv_id}: {rec['arxiv']['title'][:70]}")
+        found = arxiv.fetch_by_id(a.arxiv_id)
+
+        def pin(rec):
+            rec["arxiv"] = found
+            rec.pop("text", None)
+        store.update(a.num, pin)
+        return print(f"[{a.num}] pinned to {a.arxiv_id}: {found['title'][:70]}")
     if a.cmd == "warm":
         return print(generate.warm(limit, force))
     if a.cmd == "serve":

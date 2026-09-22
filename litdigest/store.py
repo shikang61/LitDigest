@@ -1,4 +1,5 @@
 """One JSON file per paper in cache/papers/. Stages read it, add a key, write it back."""
+import fcntl
 import json
 import os
 import threading
@@ -34,6 +35,24 @@ def save(rec: dict) -> None:
         os.replace(tmp, dest)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def update(num: int, change) -> dict:
+    """Apply change(rec) to the latest copy of a record and save it.
+
+    A stage that loads a record, spends seconds on the network or a model call, and
+    then saves what it loaded writes back every field as it was at the start -- so a
+    note typed in the meantime is silently undone. Anything slow is done first, and
+    only the write goes through here, against a copy read just now. The lock is a
+    file rather than a threading.Lock because ./run.py warm is a second process
+    writing the same records as the open app. A record not on disk yet starts empty.
+    """
+    with open(config.PAPER_DIR / ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)           # released when the file closes
+        rec = load(num) or {"num": num}
+        change(rec)
+        save(rec)
+        return rec
 
 
 def all_records() -> Iterator[dict]:

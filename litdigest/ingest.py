@@ -40,19 +40,19 @@ def run() -> int:
     n = 0
     for i, row in enumerate(df.itertuples(index=False), start=1):
         num = int(row.num) if pd.notna(getattr(row, "num", None)) else i
-        rec = store.load(num) or {"num": num}
         title = str(row.title).strip()
-        if rec.get("title") and rec["title"] != title:
-            # The row now describes a different paper, so everything derived from
-            # the old one is wrong. The note and the star are not listed here: they
-            # live in the spreadsheet and are re-read from it on every ingest.
-            for k in ("arxiv", "text", "glance", "deep", "topic",
-                      "equations", "macros", "figures", "chat", "errors"):
-                rec.pop(k, None)
-        rec["title"] = title
         notes = getattr(row, "notes", None)
-        rec["notes"] = str(notes).strip() if pd.notna(notes) else ""
-        rec["starred"] = stars.get(num, False)
-        store.save(rec)
+        notes = str(notes).strip() if pd.notna(notes) else ""
+
+        def sync(rec):
+            if rec.get("title") and rec["title"] != title:
+                # The row now describes a different paper, so everything derived from
+                # the old one is wrong. The note and the star are not listed here: they
+                # live in the spreadsheet and are re-read from it on every ingest.
+                for k in ("arxiv", "text", "glance", "deep", "topic",
+                          "equations", "macros", "figures", "chat", "errors"):
+                    rec.pop(k, None)
+            rec.update(title=title, notes=notes, starred=stars.get(num, False))
+        store.update(num, sync)
         n += 1
     return n

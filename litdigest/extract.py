@@ -55,9 +55,14 @@ def _section(text: str, head: re.Pattern, last: bool = False) -> str:
     return (m.group().strip() + "\n" + (body[:nxt.start()] if nxt else body)).strip()
 
 
-def sections(text: str) -> dict:
+def main_text(text: str) -> str:
+    """The paper up to its reference list."""
     cut = list(HEAD_REFS.finditer(text))
-    body = text[:cut[-1].start()] if cut else text
+    return text[:cut[-1].start()] if cut else text
+
+
+def sections(text: str) -> dict:
+    body = main_text(text)
     intro = _section(body, HEAD_INTRO)
     conc = _section(body, HEAD_CONC, last=True)
     if not intro:                               # unparsed layout: fall back to position
@@ -77,15 +82,15 @@ def run(force: bool = False, limit: int | None = None) -> dict:
         todo = todo[:limit]
     for rec in todo:
         try:
-            rec["text"] = sections(pdf_text(rec))
+            text = sections(pdf_text(rec))
+            store.update(rec["num"], lambda r: r.update(text=text))
             counts["ok"] += 1
-            print(f"  [{rec['num']:>3}] {rec['text']['chars']:>6} chars  "
+            print(f"  [{rec['num']:>3}] {text['chars']:>6} chars  "
                   f"{rec['title'][:60]}", flush=True)
         except Exception as exc:
-            store.note_error(rec, "fetch", exc)
+            store.update(rec["num"], lambda r: store.note_error(r, "fetch", exc))
             counts["failed"] += 1
             print(f"  [{rec['num']:>3}] FAIL {exc}", flush=True)
-        store.save(rec)
     counts["no_match"] = sum(1 for r in store.all_records()
                              if r.get("arxiv", {}).get("match_status") == "none")
     return counts

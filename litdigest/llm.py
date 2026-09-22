@@ -150,6 +150,6 @@ Every paper number must appear exactly once.""",
     for rec in recs:
         raw = (got.get(str(rec["num"])) or "").split(":")[0].strip().lower()
         rec["topic"] = valid.get(raw, "Unclustered")
-        store.save(rec)
+        store.update(rec["num"], lambda r, t=rec["topic"]: r.update(topic=t))
     return {"assigned": sum(1 for r in recs if r.get("topic") != "Unclustered"),
             "total": len(recs)}
