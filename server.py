@@ -14,6 +14,9 @@ from litdigest import arxiv, config, extract, figures, generate, ingest, llm, sh
 WEB = Path(__file__).parent / "web"
 app = FastAPI(title="LitDigest")
 app.mount("/fig", StaticFiles(directory=config.FIG_DIR), name="fig")
+# KaTeX ships with the app rather than off a CDN: the equations are the point of a
+# deep read, and on a train they would otherwise degrade to raw LaTeX in silence.
+app.mount("/vendor", StaticFiles(directory=WEB / "vendor"), name="vendor")
 
 
 def _rec(num: int) -> dict:
@@ -90,6 +93,18 @@ def _events(make_parts, num: int, key: str, prep=None):
 @app.get("/")
 def index():
     return FileResponse(WEB / "index.html")
+
+
+@app.get("/api/health")
+def health():
+    """Liveness only, for the launcher waiting on the server to come up.
+
+    It must stay cheap: /api/papers re-reads the spreadsheet and, on a fresh
+    library, files every new paper under a cluster, which is a run of model calls.
+    Polling that twice a second while the server starts is how you end up with
+    several of those running at once.
+    """
+    return {"ok": True}
 
 
 @app.get("/api/papers")

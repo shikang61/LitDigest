@@ -7,7 +7,9 @@ Stages run in order and are resumable -- each skips papers it already finished:
     ./run.py match       title         -> arXiv id, abstract, authors  (~3s/paper)
     ./run.py fetch       arXiv id      -> PDF intro + conclusion (optional; the app
                                        does this per paper on first click)
-    ./run.py taxonomy    all titles    -> 8-12 topic clusters          (1 Grok call)
+    ./run.py taxonomy    all titles    -> asks the model for its own clusters and
+                                       writes cache/taxonomy.json, replacing the
+                                       curated CLUSTERS in config.py  (1 Grok call)
     ./run.py topics      all titles    -> files every paper under a cluster (1 Grok call)
     ./run.py all         ingest + match + taxonomy + topics
     ./run.py warm        pre-generate glances so the grid is already full (optional)
@@ -33,9 +35,6 @@ def cmd_status(_args) -> None:
     print(f"text      {sum(1 for r in recs if r.get('text'))} papers with PDF text pulled")
     print(f"glances   {sum(1 for r in recs if r.get('glance'))}")
     print(f"deep      {sum(1 for r in recs if r.get('deep'))}")
-    marked = [r.get("triage") for r in recs if r.get("triage")]
-    if marked:
-        print("triaged   " + ", ".join(f"{marked.count(m)} {m}" for m in set(marked)))
     if config.TAXONOMY_FILE.exists():
         print("clusters  " + ", ".join(c["label"] for c in llm.taxonomy()))
     bad = [r for r in recs if r.get("errors")]

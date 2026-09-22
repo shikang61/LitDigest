@@ -39,12 +39,32 @@ if ! grep -qE '^XAI_API_KEY=.+' .env 2>/dev/null; then
   exit 1
 fi
 
-# already running? just bring it up
-if curl -fsS "$URL/api/papers" >/dev/null 2>&1; then
+# /api/health is liveness only. /api/papers re-reads the spreadsheet and can run
+# model calls, so it is far too expensive to poll -- but a server started before
+# health existed does not answer it, so the already-running test falls back to it.
+alive(){ curl -fsS -m 3 "$URL/api/health" >/dev/null 2>&1; }
+
+mkdir -p cache
+
+# A server started before /api/health existed answers the page but not the routes
+# the page now needs -- it serves index.html off disk while having no /vendor mount,
+# so every equation turns into its own LaTeX source. Clicking the icon used to hand
+# over to it forever, because "something is listening" looked like success. Stop it
+# and start again instead.
+if ! alive && curl -fsS -m 20 "$URL/api/papers" >/dev/null 2>&1; then
+  echo "stopping a server from an older version of LitDigest" >> cache/launch.log
+  curl -fsS -m 5 -X POST "$URL/api/quit" >/dev/null 2>&1
+  for _ in $(seq 1 20); do
+    curl -fsS -m 2 "$URL/api/papers" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+fi
+
+# already running, and current? just bring it up
+if alive; then
   open "$URL"; exit 0
 fi
 
-mkdir -p cache
 if [ "$DETACH" = "1" ]; then
   nohup "$PY" -m uvicorn server:app --host 127.0.0.1 --port "$PORT" >> cache/server.log 2>&1 &
   SERVER=$!
@@ -56,7 +76,7 @@ else
 fi
 
 for _ in $(seq 1 60); do
-  curl -fsS "$URL/api/papers" >/dev/null 2>&1 && break
+  alive && break
   kill -0 $SERVER 2>/dev/null || { say "The server failed to start.\n\nLast lines of cache/server.log:\n\n$(tail -6 cache/server.log)"; exit 1; }
   sleep 0.5
 done

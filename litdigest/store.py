@@ -1,5 +1,7 @@
 """One JSON file per paper in cache/papers/. Stages read it, add a key, write it back."""
 import json
+import os
+import threading
 from typing import Iterator
 
 from . import config
@@ -17,7 +19,21 @@ def load(num: int) -> dict | None:
 
 
 def save(rec: dict) -> None:
-    path_for(rec["num"]).write_text(json.dumps(rec, indent=2, ensure_ascii=False))
+    """Write through a temporary file and rename over the target.
+
+    A truncating write that is interrupted -- the app quit, the machine slept --
+    leaves half a JSON file behind, and one of those makes every later read of the
+    library fail, so the grid never opens again. The rename is atomic, so a reader
+    sees either the old record or the new one. The temporary name carries the
+    process and thread in it because two stages can write the same paper at once.
+    """
+    dest = path_for(rec["num"])
+    tmp = dest.with_name(f".{dest.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(json.dumps(rec, indent=2, ensure_ascii=False))
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def all_records() -> Iterator[dict]:

@@ -183,7 +183,7 @@ def warm(limit: int | None = None, force: bool = False) -> dict:
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from . import arxiv, extract, store
+    from . import extract, store
 
     todo = [r for r in store.all_records()
             if (force or not r.get("glance"))

@@ -1,5 +1,6 @@
 """Tests for the parts that are easy to break and awkward to notice: the title
-matcher, the tagged-section parser, header detection, and the spreadsheet export.
+matcher, the tagged-section parser, header detection, the spreadsheet reader, the
+record store, and the launcher's health probe.
 
 No network and no model calls -- everything here runs offline.
 """
@@ -92,7 +93,7 @@ def test_body_text_is_not_mistaken_for_a_tag():
     assert "See [EQ] in the paper." == out["claim"]
 
 
-# --- spreadsheet handling -------------------------------------------------
+# --- the spreadsheet reader -----------------------------------------------
 
 def _sheet(tmp_path, header_row=3):
     wb = Workbook()
@@ -153,3 +154,98 @@ def test_changing_a_title_discards_its_cached_work(tmp_path, monkeypatch):
     after = store.load(1)
     assert after["title"] == "A Different Paper"
     assert "arxiv" not in after and "glance" not in after
+
+
+# --- the record store -----------------------------------------------------
+
+def test_save_leaves_no_temporary_file_behind(tmp_path, monkeypatch):
+    from litdigest import config, store
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path)
+    store.save({"num": 1, "title": "x"})
+    assert store.load(1)["title"] == "x"
+    assert [p.name for p in tmp_path.iterdir()] == ["0001.json"]
+
+
+def test_a_failed_save_does_not_destroy_the_previous_record(tmp_path, monkeypatch):
+    """The old write truncated in place, so a crash mid-write cost the record --
+    and one unreadable file makes every later read of the library fail."""
+    from litdigest import config, store
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path)
+    store.save({"num": 1, "glance": {"claim": "the good one"}})
+
+    # the write dies halfway through, which is what an interrupted one looks like
+    real = Path.write_text
+
+    def half(self, text, *a, **k):
+        real(self, text[:len(text) // 2])
+        raise OSError("disk full")
+    Path.write_text = half
+    try:
+        with pytest.raises(OSError):
+            store.save({"num": 1, "glance": {"claim": "the half-written one"}})
+    finally:
+        Path.write_text = real
+
+    assert store.load(1)["glance"]["claim"] == "the good one"
+    assert list(store.all_records())                      # still readable
+    assert [p.name for p in tmp_path.iterdir()] == ["0001.json"]
+
+
+def test_concurrent_saves_are_never_seen_half_written(tmp_path, monkeypatch):
+    """Two stages can write the same paper at once -- a generation finishing while
+    /api/papers re-reads the spreadsheet. A reader must see one of them, not both."""
+    import json
+    import threading
+    from litdigest import config, store
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path)
+    store.save({"num": 1, "pad": "x"})
+
+    stop = threading.Event()
+    torn = []
+
+    def write(tag):
+        for _ in range(40):
+            store.save({"num": 1, "tag": tag, "pad": tag * 20000})
+
+    def read():
+        while not stop.is_set():
+            try:
+                rec = store.load(1)
+            except json.JSONDecodeError as exc:
+                torn.append(str(exc))
+                return
+            if rec and len(rec.get("pad", "")) not in (1, 20000):
+                torn.append("mixed payload")
+                return
+
+    readers = [threading.Thread(target=read) for _ in range(2)]
+    writers = [threading.Thread(target=write, args=(c,)) for c in "ab"]
+    for t in readers + writers:
+        t.start()
+    for t in writers:
+        t.join()
+    stop.set()
+    for t in readers:
+        t.join()
+
+    assert not torn, torn
+    assert not list(tmp_path.glob(".*tmp"))
+
+
+# --- the launcher's probe -------------------------------------------------
+
+def test_health_answers_without_reading_the_spreadsheet(monkeypatch):
+    """launch.sh polls this twice a second while the server comes up. /api/papers
+    re-reads the sheet and can run model calls, so the probe must not be that."""
+    from starlette.testclient import TestClient
+    import server
+
+    def explode(*a, **k):
+        raise AssertionError("the probe must not touch the spreadsheet")
+    monkeypatch.setattr(server.ingest, "run", explode)
+
+    with TestClient(server.app) as client:
+        r = client.get("/api/health")
+        assert r.status_code == 200 and r.json() == {"ok": True}
+        with pytest.raises(AssertionError):
+            client.get("/api/papers")          # the expensive one, for contrast

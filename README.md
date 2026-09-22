@@ -103,6 +103,10 @@ rewrite that file (or set `LITDIGEST_PYTHON`).
   reads it deeply again. Worth using on anything written before a change to how
   the digests are worded — `./run.py warm --force` does the same to all of them,
   which is an overnight job at roughly five minutes a paper.
+- **Move along.** ← and → step to the previous and next card in whatever the grid
+  is currently showing, so a filtered topic can be worked through without going
+  back to it. The abstract sits at the top of every card, open while the digest is
+  still being written and folded away once it is there.
 - **Star it.** The star on a card fills that paper's Title cell yellow in your
   spreadsheet — the same yellow you were already using by hand. Starred papers
   sort to the front and have their own filter.
@@ -184,7 +188,7 @@ beyond recognition — pin it by hand:
 
 ```
 run.py                 CLI
-server.py              FastAPI: card grid, streaming generate, triage, export
+server.py              FastAPI: card grid, streaming generate, notes and stars
 web/index.html         the whole frontend, one file
 litdigest/config.py    paths, models, rate limits, .env loader
 litdigest/store.py     one JSON file per paper
@@ -195,6 +199,7 @@ litdigest/latex.py     arXiv source -> real equations and author macros
 litdigest/figures.py   PDF -> cropped figure images
 litdigest/generate.py  the glance / deep / ask prompts, streamed
 litdigest/llm.py       xAI client, clustering
+web/vendor/katex/      KaTeX, vendored so the equations render offline
 launch.sh              starts the server and opens the browser
 make_app.sh            builds LitDigest.app for wherever the project lives
 assets/icon.icns       the app icon

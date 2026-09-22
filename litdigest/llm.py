@@ -1,8 +1,7 @@
-"""Grok (xAI) calls: build a topic taxonomy, then digest each paper into strict JSON."""
+"""Grok (xAI) calls: build the topic taxonomy, file papers under it, stream digests."""
 import json
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 
@@ -82,90 +81,6 @@ def taxonomy() -> list[dict]:
     return config.CLUSTERS
 
 
-# --- per-paper digest -----------------------------------------------------
-
-DIGEST_SYS = (
-    "You triage arXiv papers for a PhD student who will not read them in full. "
-    "Be concrete and technical: name the actual method, scheme, model or estimator, "
-    "and quote the actual numbers the paper reports. Never write filler such as "
-    "'this paper explores' or 'the authors investigate'. Reply with JSON only.")
-
-DIGEST_USER = """PAPER
-Title: {title}
-Authors: {authors}
-Year: {year}
-arXiv categories: {categories}
-
-ABSTRACT
-{abstract}
-
-INTRODUCTION (excerpt)
-{intro}
-
-CONCLUSION (excerpt)
-{conclusion}
-
-TOPIC CLUSTERS (choose exactly one label, verbatim)
-{clusters}
-
-Return JSON with exactly these keys:
-{{
-  "problem":   "1-2 sentences: the specific gap or failure of prior work this attacks.",
-  "method":    "2-4 sentences: what they actually built or proved, naming the technique.",
-  "result":    "1-3 sentences: the concrete finding, with the paper's own numbers where given.",
-  "key_terms": ["3-6 items, each 'term -- short gloss' for jargon the paper leans on"],
-  "prereqs":   ["2-4 background topics you must already know to read this paper"],
-  "topic":     "one cluster label, copied verbatim",
-  "depth":     "one of: survey, theory, method, empirical, application",
-  "confidence":"one of: high, medium, low -- how well the supplied text supported this digest"
-}}"""
-
-
-def digest_one(rec: dict, clusters: list[dict]) -> dict:
-    arx = rec.get("arxiv", {})
-    text = rec.get("text", {})
-    user = DIGEST_USER.format(
-        title=rec["title"],
-        authors=", ".join(arx.get("authors", [])[:8]) or "unknown",
-        year=arx.get("year", "unknown"),
-        categories=", ".join(arx.get("categories", [])) or "unknown",
-        abstract=arx.get("abstract", "(not available)"),
-        intro=text.get("intro", "(not available)"),
-        conclusion=text.get("conclusion", "(not available)"),
-        clusters="\n".join(f'- {c["label"]}: {c["scope"]}' for c in clusters))
-    return _json_call(DIGEST_SYS, user)
-
-
-def run(force: bool = False, limit: int | None = None) -> dict:
-    clusters = taxonomy()
-    labels = {c["label"] for c in clusters}
-    todo = [r for r in store.all_records()
-            if r.get("arxiv", {}).get("match_status") in ("ok", "fuzzy")
-            and (force or not r.get("digest"))]
-    if limit:
-        todo = todo[:limit]
-
-    counts = {"ok": 0, "failed": 0}
-    with ThreadPoolExecutor(max_workers=config.WORKERS) as pool:
-        futures = {pool.submit(digest_one, r, clusters): r for r in todo}
-        for fut in as_completed(futures):
-            rec = futures[fut]
-            try:
-                d = fut.result()
-                if d.get("topic") not in labels:
-                    d["topic"] = "Unclustered"
-                rec["digest"] = d
-                counts["ok"] += 1
-                print(f"  [{rec['num']:>3}] {d['topic'][:28]:<28} "
-                      f"{rec['title'][:50]}", flush=True)
-            except Exception as exc:
-                store.note_error(rec, "digest", exc)
-                counts["failed"] += 1
-                print(f"  [{rec['num']:>3}] FAIL {exc}", flush=True)
-            store.save(rec)
-    return counts
-
-
 def stream_parts(system: str, user: str, max_tokens: int = 1500):
     """Yield ("think", text) while the model reasons, then ("say", text) as it writes.
 
@@ -189,13 +104,6 @@ def stream_parts(system: str, user: str, max_tokens: int = 1500):
             yield "think", thinking
         if delta.content:
             yield "say", delta.content
-
-
-def stream(system: str, user: str, max_tokens: int = 1500):
-    """Answer text only."""
-    for kind, text in stream_parts(system, user, max_tokens):
-        if kind == "say":
-            yield text
 
 
 TOPIC_SYS = "You sort papers into given clusters. JSON only, no commentary."

@@ -4,24 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LitDigest</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2334567d'/%3E%3Cg fill='%23fff'%3E%3Crect x='8' y='9' width='16' height='3' rx='1.5'/%3E%3Crect x='8' y='15' width='16' height='3' rx='1.5'/%3E%3Crect x='8' y='21' width='10' height='3' rx='1.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/vendor/katex/katex.min.css">
+<script defer src="/vendor/katex/katex.min.js"></script>
+<script defer src="/vendor/katex/contrib/auto-render.min.js"></script>
 <style>
 :root{
   --bg:#f6f5f2; --card:#fff; --ink:#191917; --muted:#6c6b64; --line:#e4e2dc;
   --accent:#34567d; --accent-soft:#e9eff6; --warn:#8a5a2b; --warn-soft:#f7eee2;
   --good:#2f6b4f; --bad:#8c3a3a;
+  --on-accent:#fff;              /* text on a filled accent button */
   --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.06);
   --lift:0 18px 60px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
   --ease:cubic-bezier(.22,.8,.26,1);
   --ui:Verdana,Geneva,"DejaVu Sans",sans-serif;
   --read:Verdana,Geneva,"DejaVu Sans",sans-serif;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+@media (prefers-color-scheme:dark){:root{
   --bg:#141417; --card:#1d1d21; --ink:#e9e8e4; --muted:#9b9a93; --line:#2f2f36;
   --accent:#8db3dd; --accent-soft:#222c39; --warn:#d7aa6c; --warn-soft:#332b1f;
   --good:#7cc29b; --bad:#d98b8b;
+  /* the dark theme's accent is a pale blue, so a filled button takes dark text */
+  --on-accent:#14161c;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
   --lift:0 18px 60px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.4);
 }}
@@ -52,12 +56,14 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .sortwrap select{font:inherit;font-size:15px;color:var(--ink);background:var(--card);
   border:1px solid var(--line);border-radius:8px;padding:5px 8px;cursor:pointer}
 .sortwrap select:hover{border-color:var(--accent)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);
   padding:6px 13px;border-radius:999px;font-size:15px}
 .chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 .count{color:var(--muted);font-size:15px}
+.warnbar{margin-top:9px;padding:9px 13px;border-radius:9px;font-size:15px;
+  background:var(--warn-soft);color:var(--warn);border:1px solid currentColor}
 
 /* ---- grid ---- */
 .grid{display:grid;gap:13px;padding:18px 20px 60px;
@@ -81,7 +87,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .star[aria-pressed="true"]{color:#e8b53a}
 .card h3{padding-right:4px}
 .titlerow{display:flex;gap:8px;align-items:flex-start}
-.card.growing .titlerow{padding-right:38px}
+.card.growing .titlerow{padding-right:120px}
 .card.growing .star{font-size:25px;margin-top:2px}
 .titlerow h3{flex:1}
 .notebox{width:100%;min-height:70px;resize:vertical;padding:10px 12px;
@@ -110,6 +116,19 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .close{position:absolute;top:14px;right:16px;background:none;border:none;
   color:var(--muted);font-size:26px;line-height:1;padding:0 4px;z-index:2}
 .close:hover{color:var(--ink)}
+/* stepping through the list is the whole job, so the keys that do it are shown
+   rather than left to be discovered */
+.step{position:absolute;top:18px;right:52px;display:flex;gap:2px;z-index:2}
+.step button{background:none;border:none;color:var(--muted);font-size:18px;
+  line-height:1;padding:2px 6px;border-radius:6px}
+.step button:hover:not(:disabled){color:var(--ink);background:var(--bg)}
+.step button:disabled{opacity:.3;cursor:default}
+.abs{border:1px solid var(--line);border-radius:9px;background:var(--bg);
+  margin:14px 0 4px;padding:0 13px}
+.abs summary{cursor:pointer;padding:10px 0;font-family:var(--ui);font-size:14px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.abs summary::marker{color:var(--muted)}
+.abs p{margin:0 0 13px;font-family:var(--read);font-size:16.5px;line-height:1.6}
 .detail{opacity:0;transition:opacity .2s ease .12s;min-height:0}
 .card.open .detail{overflow-y:auto;flex:1;padding-right:6px;padding-bottom:6px}
 .card.open .detail{opacity:1}
@@ -195,6 +214,7 @@ strong{font-weight:600;color:var(--ink)}
   .card.open{padding:20px 18px 28px}
   .card.growing .controls{margin:8px 0 4px}
   .card.growing h3{font-size:24px}
+  .card.growing .titlerow{padding-right:106px}
 }
 </style>
 </head>
@@ -231,6 +251,7 @@ strong{font-weight:600;color:var(--ink)}
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let PAPERS = [], topic = null, starsOnly = false, open = null;
+let VIEW = [];              // what the grid is showing, in its own order
 
 const SORTS = {
   sheet:    (a, b) => a.num - b.num,
@@ -284,7 +305,13 @@ const dots = n => '●'.repeat(n) + '○'.repeat(5-n);
 /* ---------- generations still running ----------
    The fetch keeps streaming after its card is closed, and the server saves the
    result either way, so a job is tracked by paper number and drawn on the grid
-   card until it finishes. */
+   card until it finishes.
+
+   A job owns the text so far and how to draw it, but not the panel it draws into:
+   that belongs to the card, which can be closed and built again underneath it.
+   jobShow hands a running job the panel a freshly opened card just made, so
+   reopening a paper picks its generation back up instead of starting a second
+   one and paying for the same reading twice. */
 const JOBS = new Map();
 let ticker = null;
 
@@ -300,17 +327,58 @@ function paint(){
   }
 }
 
-function jobStart(num, kind){
-  JOBS.set(num, {kind, t0: Date.now(), expected: 180, label: 'starting'});
+function jobStart(num, kind, root, render){
+  const j = {kind, render, raw: '', t0: Date.now(), label: 'starting',
+             expected: kind === 'deep' ? 300 : 180,
+             root: null, box: null, pr: null};
+  JOBS.set(num, j);
+  jobShow(num, root);
   if(!ticker) ticker = setInterval(() => {
     if(!JOBS.size){ clearInterval(ticker); ticker = null; return; }
     paint();
   }, 500);
+  return j;
 }
 
-const jobUpdate = (num, patch) => { const j = JOBS.get(num); if(j) Object.assign(j, patch); };
+/* Point a running job at the panel of the card that is open now. Which panel it
+   is follows from what is being generated, so a deep read reopened mid-flight
+   lands under the glance rather than on top of it. */
+function jobShow(num, root){
+  const j = JOBS.get(num);
+  if(!j || !root) return null;
+  const box = root.querySelector(j.kind === 'deep' ? '.deepwrap' : '.glance');
+  if(!box) return null;
+  j.root = root;
+  j.box = box;
+  j.pr = progress(box, j.label, j.t0, j.expected);
+  if(j.raw){ j.pr.writing(); box.innerHTML = j.render(j.raw); }
+  return j;
+}
+
+/* The open card is going away. The streams keep running -- only the panels they
+   were drawing into are about to be removed. */
+function jobDetach(){
+  for(const j of JOBS.values()){
+    if(j.pr) j.pr.stop();
+    j.pr = null; j.box = null; j.root = null;
+  }
+}
+
+const jobPhase = (j, m) => {
+  j.label = m.phase;
+  if(m.expected) j.expected = m.expected;
+  if(j.pr) j.pr.phase(m);
+};
+
+const jobText = (j, t) => {
+  if(!j.raw){ j.label = 'writing it up'; if(j.pr) j.pr.writing(); }
+  j.raw += t;
+  if(j.box) j.box.innerHTML = j.render(j.raw);
+};
 
 async function jobEnd(num){
+  const j = JOBS.get(num);
+  if(j && j.pr) j.pr.stop();
   JOBS.delete(num);
   try{
     const d = await (await fetch(`/api/papers/${num}`)).json();
@@ -321,13 +389,13 @@ async function jobEnd(num){
 }
 
 /* ---------- progress ---------- */
-function progress(box, label){
+function progress(box, label, t0, estimate){
   box.innerHTML = `<div class="prog">
     <div class="prog-top"><b class="pl">${label}</b><span class="pt"></span></div>
     <div class="track"><div class="fill pf"></div></div>
     <p class="think pk"></p></div>`;
-  const t0 = Date.now();
-  let expected = 60, thought = '', stopped = false;
+  t0 = t0 || Date.now();
+  let expected = estimate || 60, thought = '', stopped = false;
   const tick = () => {
     if(stopped) return;
     const el = (Date.now()-t0)/1000, pf = box.querySelector('.pf');
@@ -366,7 +434,7 @@ function cardHtml(p){
     ${p.score ? `<div class="dots">${dots(p.score)}</div>` : ''}
     ${JOBS.has(p.num) ? `<div class="job"><div class="jobtrack"><div class="jobfill"></div></div>
        <div class="jobtext">working</div></div>` : ''}
-    ${p.claim ? `<p class="claim">${esc(p.claim)}</p>`
+    ${p.claim ? `<p class="claim">${esc(unbullet(p.claim))}</p>`
               : `<p class="ghost">${p.match==='none' ? 'no source to read' : 'click to read it for you'}</p>`}
   </article>`;
 }
@@ -380,6 +448,7 @@ function render(){
     (!needle || needle.split(/\s+/).every(w =>
       (p.title+' '+p.authors+' '+p.topic+' '+p.claim+' '+p.notes).toLowerCase().includes(w))));
   hits.sort(SORTS[sortBy] || SORTS.sheet);
+  VIEW = hits;
   $('#grid').innerHTML = hits.map(cardHtml).join('');
   $('#count').textContent =
     `${hits.length} of ${PAPERS.length} papers · ${PAPERS.filter(p=>p.has_glance).length} read so far`;
@@ -454,16 +523,24 @@ function expand(card){
   after(card, opened);
 }
 
-function collapse(){
+function collapse(then){
   const card = document.querySelector('.card.growing');
   if(!card) return;
   const num = open; open = null;
+  // Chrome fires blur when the focused textarea is removed, so a note being typed
+  // when Escape is pressed does get saved there. WebKit has long been unreliable
+  // about that, and this opens in whatever the default browser is, so the note is
+  // flushed explicitly while it is still in the document. saveNote is idempotent,
+  // so the blur that follows costs nothing.
+  const note = card.querySelector('.notebox');
+  if(note && note._save) note._save();
+  jobDetach();                               // the streams live on; their panels do not
   unlockScroll();                            // before measuring, so the rect is right
   const ph = card._ph;
   const r = ph ? ph.getBoundingClientRect() : card.getBoundingClientRect();
   card.classList.remove('open');
   card.scrollTop = 0;
-  card.querySelectorAll('.detail, .askbar, .controls').forEach(el => el.remove());
+  card.querySelectorAll('.detail, .askbar, .controls, .step').forEach(el => el.remove());
   const close = card.querySelector('.close');
   if(close) close.remove();
   Object.assign(card.style, {top:r.top+'px', left:r.left+'px',
@@ -474,6 +551,22 @@ function collapse(){
     card.removeAttribute('style');
     if(ph) ph.remove();
     render();
+    if(then) then();
+  });
+}
+
+/* Walk the grid without going back to it. The next paper is picked before the
+   card collapses, because finishing a reading can reorder the grid underneath --
+   "unread first" moves the very paper you just read out from under the arrow. */
+function step(delta){
+  if(open === null) return;
+  const i = VIEW.findIndex(p => p.num === open);
+  const next = i < 0 ? null : VIEW[i + delta];
+  if(!next) return;
+  collapse(() => {
+    document.querySelector(`.card[data-num="${next.num}"]`)
+            ?.scrollIntoView({block: 'center'});
+    openCard(next.num);
   });
 }
 
@@ -490,6 +583,22 @@ function openCard(num){
   close.textContent = '×';
   close.onclick = e => { e.stopPropagation(); collapse(); };
   card.appendChild(close);
+
+  const at = VIEW.findIndex(p => p.num === num);
+  const steps = document.createElement('div');
+  steps.className = 'step';
+  steps.innerHTML = `
+    <button data-step="-1" aria-label="Previous paper" title="Previous paper (\u2190)"
+      ${at <= 0 ? 'disabled' : ''}>\u2039</button>
+    <button data-step="1" aria-label="Next paper" title="Next paper (\u2192)"
+      ${at < 0 || at >= VIEW.length - 1 ? 'disabled' : ''}>\u203a</button>`;
+  steps.onclick = e => {
+    const b = e.target.closest('[data-step]');
+    if(!b || b.disabled) return;
+    e.stopPropagation();
+    step(+b.dataset.step);
+  };
+  card.appendChild(steps);
 
   const controls = document.createElement('div');
   controls.className = 'controls';
@@ -513,6 +622,11 @@ function openCard(num){
    show every one of those as a break. These sections are paragraphs, so any
    newline inside one is an artifact. */
 const prose = t => String(t || '').replace(/\s*\n+\s*/g, ' ').trim();
+
+/* Every other section is bullets, so the model writes the claim as one too. It is
+   a single sentence and the heading above it already says what it is, so the
+   marker is only noise -- and it is noise on the most prominent line in the app. */
+const unbullet = t => String(t || '').replace(/^\s*[-*\u2022]\s+/, '');
 
 /* Sections are bullets. Digests written before that was asked for are single
    paragraphs, so they are split at sentence ends -- taking care not to break on
@@ -543,7 +657,7 @@ const points = text => {
 
 function glanceHtml(s){
   return `
-  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(prose(s.claim||''))}</p></section>
+  <section class="blk" id="claim"><h4>Claim</h4><p>${esc(unbullet(prose(s.claim||'')))}</p></section>
   <section class="blk"><h4>Worth it</h4>
     <div class="dots">${s.score ? dots(+s.score) : ''}</div>
     ${points(s.verdict)}</section>
@@ -655,47 +769,65 @@ function wrapBareMath(text){
    and neither is a grid size, so a x followed by another number does not count. */
 const QUANTITY = /\b\d[\d,]*(?:\.\d+)?\s?[×x](?!\s*\d)|\b\d[\d,]*(?:\.\d+)?\s?%|\b\d*\.\d{3,}\b/g;
 
-function markup(text){
-  if(!/\*\*|\d/.test(text)) return null;
-  let out = esc(text).replace(/\*\*([^*]{1,60})\*\*/g, '<strong>$1</strong>');
-  if(!out.includes('<strong>')) out = out.replace(QUANTITY, m => `<strong>${m}</strong>`);
-  return out === esc(text) ? null : out;
+/* What the model marked, turned into real emphasis -- and done before KaTeX, not
+   after it. KaTeX replaces each formula with a span of its own, which breaks the
+   line into pieces: "out to **\(t = 0.3\)**." ends up as the text "out to **",
+   a rendered element, and the text "**.", and neither piece holds a complete pair
+   any more. Marking first leaves KaTeX free to typeset inside the emphasis. */
+function boldMarks(root){
+  root.querySelectorAll('section.blk p, .points li, .qa .a, .card .claim').forEach(el => {
+    if(el.dataset.marked || !el.textContent.includes('**')) return;
+    el.dataset.marked = '1';
+    el.innerHTML = esc(el.textContent)
+      .replace(/\*\*([^*]{1,60})\*\*/g, '<strong>$1</strong>');
+  });
 }
 
-/* Runs after the maths, so it only ever touches what is left as plain text. */
-function emphasise(root){
-  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+/* The numbers that settle a result, for the lines the model left unmarked. Runs
+   after the maths, so it only ever touches what is left as plain text. */
+function emphasise(el){
+  if(el.querySelector('strong')) return;          // the model already said what matters
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
     acceptNode: n => n.parentElement && !n.parentElement.closest('.katex, strong, .eq')
       ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
   });
   const nodes = [];
   while(walk.nextNode()) nodes.push(walk.currentNode);
   for(const n of nodes){
-    const html = markup(n.nodeValue);
-    if(html === null) continue;
+    if(!/\d/.test(n.nodeValue)) continue;
+    const plain = esc(n.nodeValue);
+    const html = plain.replace(QUANTITY, m => `<strong>${m}</strong>`);
+    if(html === plain) continue;
     const span = document.createElement('span');
     span.innerHTML = html;
     n.parentNode.replaceChild(span, n);
   }
 }
 
+/* The maths and the emphasis are separate passes, and only the first one needs
+   KaTeX. Bailing out of both when the library is missing is how a page served by a
+   server too old to have /vendor ends up showing raw \(x\) *and* raw **asterisks**. */
 function renderMath(root, macros){
-  if(!window.renderMathInElement) return;
-  root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li, .card .claim').forEach(el => {
-    if(el.dataset.mathed) return;
-    const t = legacyDollars(el.textContent);
-    el.textContent = BARE_MATH.test(t) ? wrapBareMath(t) : t;
-    el.dataset.mathed = '1';
-  });
-  try{
-    renderMathInElement(root, {
-      delimiters:[{left:'\\[',right:'\\]',display:true},
-                  {left:'$$',right:'$$',display:true},
-                  {left:'\\(',right:'\\)',display:false}],
-      throwOnError:false, ignoredTags:['script','noscript','style','textarea','pre'],
-      macros: macros || {}
+  if(window.renderMathInElement){
+    root.querySelectorAll('section.blk p, .points li, .qa .a, .terms li, .card .claim').forEach(el => {
+      if(el.dataset.mathed) return;
+      const t = legacyDollars(el.textContent);
+      el.textContent = BARE_MATH.test(t) ? wrapBareMath(t) : t;
+      el.dataset.mathed = '1';
     });
-  }catch(e){ /* leave the text as written */ }
+  }
+  boldMarks(root);                      // before the typesetting, see above
+  if(window.renderMathInElement){
+    try{
+      renderMathInElement(root, {
+        delimiters:[{left:'\\[',right:'\\]',display:true},
+                    {left:'$$',right:'$$',display:true},
+                    {left:'\\(',right:'\\)',display:false}],
+        throwOnError:false, ignoredTags:['script','noscript','style','textarea','pre'],
+        macros: macros || {}
+      });
+    }catch(e){ /* leave the text as written */ }
+  }
   root.querySelectorAll('.points li, section.blk p, .qa .a, .card .claim')
       .forEach(emphasise);
 }
@@ -714,6 +846,7 @@ async function fillDetail(num, root){
     <div class="meta" style="margin-top:8px">
       ${p.abs_url ? `<a href="${esc(p.abs_url)}" target="_blank" rel="noopener">arXiv:${esc(p.arxiv_id)}</a>`:''}
     </div>
+    <div class="absbox"></div>
     <section class="blk" style="margin-top:14px">
       <h4>Your note <span style="text-transform:none;letter-spacing:0;font-weight:400">— saved into the spreadsheet</span></h4>
       <textarea class="notebox" placeholder="What you thought of it…">${esc(p.notes||'')}</textarea>
@@ -726,22 +859,38 @@ async function fillDetail(num, root){
   const saveNote = async () => {
     const text = note.value.trim();
     if(text === saved) return;
+    // claimed before the request goes out, not after it comes back: closing the
+    // card flushes the note and then blur arrives behind it, and the spreadsheet
+    // should be written once
+    saved = text;
     state.textContent = 'saving…';
     const res = await fetch(`/api/papers/${num}/note`, {method:'POST',
       headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
-    if(!res.ok){ state.textContent = 'could not write to the spreadsheet'; return; }
-    saved = text; p.notes = text;
+    if(!res.ok){ saved = null; state.textContent = 'could not write to the spreadsheet'; return; }
+    p.notes = text;
     state.textContent = 'written to the spreadsheet';
     setTimeout(() => { if(state.textContent === 'written to the spreadsheet') state.textContent = ''; }, 2200);
   };
+  note._save = saveNote;                     // so closing the card can flush it
   note.addEventListener('blur', saveNote);
   note.addEventListener('keydown', e => {
     if(e.key === 'Enter' && (e.metaKey || e.ctrlKey)){ e.preventDefault(); note.blur(); }
   });
 
   const data = await (await fetch(`/api/papers/${num}`)).json();
+  // Open while there is nothing else to read, shut once there is: a glance takes
+  // about a minute, and the abstract is what that minute is otherwise spent not
+  // reading. Afterwards it is the thing the digest was written to save you.
+  if(data.abstract)
+    root.querySelector('.absbox').innerHTML =
+      `<details class="abs"${data.glance ? '' : ' open'}>
+         <summary>Abstract</summary><p>${esc(data.abstract)}</p></details>`;
+  // whatever is saved goes up first, so a deep read in flight has a glance above it
   if(data.glance) showGlance(num, root, sections(data.glance.raw||''), data);
-  else runGlance(num, root, data);
+  // a generation from an earlier open of this card is adopted, never restarted:
+  // it is already being paid for, and the server saves it either way
+  if(JOBS.has(num)) jobShow(num, root);
+  else if(!data.glance) runGlance(num, root, data);
   renderQA(num, root, data.chat||[]);
 }
 
@@ -783,44 +932,40 @@ function showFigures(wrap, data, used){
 }
 
 function runGlance(num, root, data){
-  const box = root.querySelector('.glance');
-  const pr = progress(box, 'starting');
-  jobStart(num, 'glance');
-  let raw = '';
+  const j = jobStart(num, 'glance', root, raw => glanceHtml(sections(raw)));
   stream(`/api/papers/${num}/glance`, null, {
-    phase: m => { pr.phase(m); jobUpdate(num, {label: m.phase, expected: m.expected || 180}); },
-    think: t => pr.think(t),
-    text: t => { if(!raw){ pr.writing(); jobUpdate(num, {label: 'writing it up'}); }
-                 raw += t; box.innerHTML = glanceHtml(sections(raw)); },
+    phase: m => jobPhase(j, m),
+    think: t => { if(j.pr) j.pr.think(t); },
+    text: t => jobText(j, t),
     done: msg => {
-      pr.stop(); jobEnd(num);
-      if(msg.error){ box.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
-      const p = PAPERS.find(x=>x.num===num), s = sections(raw);
-      p.claim = s.claim || ''; p.score = +s.score || null; p.has_glance = true;
-      showGlance(num, root, s, data);
+      const box = j.box, here = j.root;     // both null if the card was closed
+      jobEnd(num);
+      if(msg.error){ if(box) box.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
+      const p = PAPERS.find(x=>x.num===num), s = sections(j.raw);
+      if(p){ p.claim = s.claim || ''; p.score = +s.score || null; p.has_glance = true; }
+      if(here) showGlance(num, here, s, data);
     }});
 }
 
 function runDeep(num, root){
-  const wrap = root.querySelector('.deepwrap');
-  const pr = progress(wrap, 'starting');
-  jobStart(num, 'deep');
-  let raw = '';
+  const j = jobStart(num, 'deep', root, raw => deepHtml(sections(raw)));
   stream(`/api/papers/${num}/deep`, null, {
-    phase: m => { pr.phase(m); jobUpdate(num, {label: m.phase, expected: m.expected || 300}); },
-    think: t => pr.think(t),
-    text: t => { if(!raw){ pr.writing(); jobUpdate(num, {label: 'writing it up'}); }
-                 raw += t; wrap.innerHTML = deepHtml(sections(raw)); },
+    phase: m => jobPhase(j, m),
+    think: t => { if(j.pr) j.pr.think(t); },
+    text: t => jobText(j, t),
     done: async msg => {
-      pr.stop(); jobEnd(num);
-      if(msg.error){ wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
+      const wrap = j.box, raw = j.raw;      // null if the card was closed
+      jobEnd(num);
+      const p = PAPERS.find(x=>x.num===num);
+      if(msg.error){ if(wrap) wrap.innerHTML = `<p class="err">${esc(msg.error)}</p>`; return; }
+      if(p) p.has_deep = true;
+      if(!wrap) return;
       const data = await (await fetch(`/api/papers/${num}`)).json();
       const d = sections(raw), used = new Set();
       wrap.innerHTML = deepHtml(d, data, used);
       renderEquation(wrap, d.equation, data.macros);
       renderMath(wrap, data.macros);
       showFigures(wrap, data, used);
-      PAPERS.find(x=>x.num===num).has_deep = true;
     }});
 }
 
@@ -880,8 +1025,15 @@ $('#grid').addEventListener('click', e => {
   const card = e.target.closest('.card');
   if(card) openCard(+card.dataset.num);
 });
-$('#scrim').onclick = collapse;
-document.addEventListener('keydown', e => { if(e.key==='Escape') collapse(); });
+$('#scrim').onclick = () => collapse();
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ collapse(); return; }
+  if(open === null || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;                      // not while a note or a question is being typed
+  if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if(e.key === 'ArrowLeft'){ e.preventDefault(); step(-1); }
+  if(e.key === 'ArrowRight'){ e.preventDefault(); step(1); }
+});
 addEventListener('resize', () => {
   const card = document.querySelector('.card.growing');
   if(!card) return;
@@ -900,6 +1052,18 @@ $('#sort').onchange = e => {
   try{ localStorage.setItem('litdigest.sort', sortBy); }catch(err){}
   render();
 };
+/* Without KaTeX every equation shows as its own source, which reads as a broken
+   digest rather than what it is. The usual cause is a server started before the
+   app gained its /vendor mount, still serving this page off disk. */
+addEventListener('load', () => {
+  if(window.renderMathInElement) return;
+  const bar = document.createElement('div');
+  bar.className = 'warnbar';
+  bar.textContent = 'Equations are showing as LaTeX source because KaTeX did not load.'
+    + ' If the app was updated while it was running, restart the server.';
+  $('.bar').appendChild(bar);
+});
+
 $('#reload').onclick = () => boot();
 $('#quit').onclick = async () => {
   if(!confirm('Stop LitDigest? The page will stop working until you open the app again.')) return;
