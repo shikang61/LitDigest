@@ -56,9 +56,12 @@ Format:
   plain lines.
 - Put the point of a bullet in its first sentence so the reader can skim, but open each
   bullet in its own way.
-- If one phrase in a bullet is what the eye should land on, usually a result or a number,
-  you may wrap it in **double asterisks**. At most one per bullet, often none, and never
-  the opening words.
+- Bold for skimming: in each bullet, wrap the words that carry its point in
+  **double asterisks**, so that reading only the bold, like a telegram, gives the gist of
+  every sentence. Bold what is said about a thing along with the thing, verb included
+  ("**coupled solves run out of memory**" rather than "**coupled solves**"), and the
+  number that settles it. Two to four phrases per bullet, each under eight words, marked
+  where they fall rather than as a bolded label opening the bullet.
 - The tagged sections below are the structure: the app lays them out itself, so use no
   headings, tables or other markdown beyond the bullets and the **marks** described above.
 - Output ONLY the tagged sections below, in order, nothing before or after."""
@@ -76,7 +79,17 @@ holds up, plus where the work sits in its field if you know."""
 DEEP_SYS = GLANCE_SYS.replace(
     "They want the gist in under a minute, so say what matters and stop.",
     "They asked how it actually works, so take them through the method one step at a time,\n"
-    "still plainly and without padding, and keep every bullet under 60 words.")
+    "still plainly and without padding, and keep every bullet under 60 words.").replace(
+    # the deep read is read slowly, so it keeps the lighter marking
+    """- Bold for skimming: in each bullet, wrap the words that carry its point in
+  **double asterisks**, so that reading only the bold, like a telegram, gives the gist of
+  every sentence. Bold what is said about a thing along with the thing, verb included
+  ("**coupled solves run out of memory**" rather than "**coupled solves**"), and the
+  number that settles it. Two to four phrases per bullet, each under eight words, marked
+  where they fall rather than as a bolded label opening the bullet.""",
+    """- If one phrase in a bullet is what the eye should land on, usually a result or a number,
+  you may wrap it in **double asterisks**. At most one per bullet, often none, and never
+  the opening words.""")
 
 DEEP_FMT = r"""[SETUP]
 One or two bullets: the usual way of doing this, and what goes wrong with it here, with the
@@ -187,13 +200,16 @@ def stream_ask(rec: dict, question: str, history: list[dict] | None = None):
 
 
 def expected_seconds(kind: str = "glance", default: float = 60.0) -> float:
-    """Median time the last runs took, so the UI can size its progress bar."""
+    """Median time the last few runs took, so the UI can size its progress bar.
+
+    Only the latest runs, since a slower pipeline (a web search, the whole paper) leaves
+    the older timings behind and a median over all of them lags far short."""
     from statistics import median
 
     from . import store
-    seen = [r[kind]["seconds"] for r in store.all_records()
-            if r.get(kind, {}).get("seconds")]
-    return round(median(seen), 1) if seen else default
+    seen = sorted((r[kind]["generated_at"], r[kind]["seconds"]) for r in store.all_records()
+                  if r.get(kind, {}).get("seconds"))
+    return round(median(s for _, s in seen[-5:]), 1) if seen else default
 
 
 def parse(raw: str) -> dict:

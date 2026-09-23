@@ -316,9 +316,20 @@ def test_a_note_cannot_be_written_without_a_notes_column(tmp_path, monkeypatch):
 # --- the prompts ------------------------------------------------------------
 
 def test_the_deep_prompt_differs_from_the_glance_prompt():
-    """DEEP_SYS is GLANCE_SYS with one sentence swapped by str.replace, which does
-    nothing at all once that sentence is reworded."""
+    """DEEP_SYS is GLANCE_SYS with passages swapped by str.replace, which does
+    nothing at all once a passage is reworded."""
     assert generate.DEEP_SYS != generate.GLANCE_SYS
+    assert "Bold for skimming" in generate.GLANCE_SYS
+    assert "Bold for skimming" not in generate.DEEP_SYS
+
+
+def test_the_time_estimate_follows_the_latest_runs(monkeypatch):
+    """Five slow runs after five fast ones: the estimate is the slow time."""
+    from litdigest import store
+    runs = [{"deep": {"seconds": s, "generated_at": f"2026-09-{d:02d}T10:00:00"}}
+            for d, s in enumerate([180] * 5 + [430] * 5, start=1)]
+    monkeypatch.setattr(store, "all_records", lambda: iter(runs[::-1]))
+    assert generate.expected_seconds("deep") == 430
 
 
 def test_an_overlong_paper_keeps_its_start_and_end(monkeypatch):

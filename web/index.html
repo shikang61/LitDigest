@@ -83,7 +83,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .grid.list{grid-template-columns:1fr;gap:6px}
 .grid.list .card:not(.growing){flex-direction:row;align-items:center;gap:14px;padding:9px 16px}
 .grid.list .card:not(.growing) .titlerow{flex:1;min-width:0;align-items:center}
-.grid.list .card:not(.growing) h3{font-size:16px;font-weight:400}
+.grid.list .card:not(.growing) h3{font-size:16px}
 .grid.list .card:not(.growing) .meta{flex-wrap:nowrap;white-space:nowrap}
 .grid.list .card:not(.growing) .job{width:140px;margin:0}
 .grid.list .card:not(.growing) .ghost{display:none}
@@ -103,7 +103,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 /* inside an open card: the panel being written, then the panel just written */
 .justdone{background:var(--good-soft);border-radius:10px;padding:2px 14px 8px;margin:0 -14px}
 .card h3{margin:0;font-family:var(--read);font-size:16.5px;line-height:1.38;
-  font-weight:600;letter-spacing:-.012em}
+  font-weight:400;letter-spacing:-.012em}
 .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
 .tag{padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .card:not(.growing) .tag{font-size:13.5px;padding:3px 11px}
@@ -140,7 +140,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
              width .34s var(--ease),height .34s var(--ease),
              padding .34s var(--ease),box-shadow .34s var(--ease)}
 .card.growing:hover{transform:none}
-.card.growing h3{font-size:30px;line-height:1.24;letter-spacing:-.018em;
+.card.growing h3{font-size:30px;line-height:1.24;letter-spacing:-.018em;font-weight:600;
   transition:font-size .34s var(--ease)}
 .card.open{padding:26px 30px 30px}
 .placeholder{border:1px dashed var(--line);border-radius:12px;opacity:.5}
