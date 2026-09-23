@@ -1,15 +1,19 @@
-"""The two-way bits: notes typed in the app, and the yellow star on a title cell.
+"""The two-way bits: notes typed in the app, the yellow star on a title cell, and the
+arXiv link of each paper that was found.
 
 The spreadsheet stays the source of truth. Nothing else is ever written to it.
 """
 import datetime as dt
+import re
 import shutil
 import threading
+from copy import copy
 
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
+from openpyxl.utils import get_column_letter
 
-from . import config
+from . import config, store
 
 STAR_RGB = "FFFFFF00"                                   # the yellow already in the sheet
 STAR_FILL = PatternFill(start_color=STAR_RGB, end_color=STAR_RGB, fill_type="solid")
@@ -96,3 +100,47 @@ def set_star(num: int, starred: bool) -> bool:
     def apply(ws, cols, row):
         ws.cell(row, cols["title"]).fill = STAR_FILL if starred else CLEAR_FILL
     return _write(num, "title", apply)
+
+
+def _link(arx: dict) -> str:
+    """The abstract page, without the version so it opens the latest one."""
+    return re.sub(r"v\d+$", "", arx["abs_url"]).replace("http://", "https://", 1)
+
+
+def sync_links() -> int:
+    """Write each found paper's arXiv link into the arXiv column, adding that column
+    after the last one the first time. Returns how many cells changed, and saves
+    only when some did, since the app calls this every time it opens."""
+    links = {r["num"]: _link(r["arxiv"]) for r in store.all_records()
+             if r.get("arxiv", {}).get("match_status") in config.RESOLVED
+             and r["arxiv"].get("abs_url")}
+    with _lock:
+        wb = load_workbook(config.SOURCE_XLSX)
+        ws = wb[wb.sheetnames[0]]
+        cols = columns(ws)
+        if not cols.get("num") or not links:
+            return 0
+        head = cols["_header"]
+        col = cols.get("arxiv")
+        if col is None:
+            last = max(c for k, c in cols.items() if k != "_header")
+            col = last + 1
+            ws.cell(head, col).value = "arXiv"
+            ws.cell(head, col)._style = copy(ws.cell(head, last)._style)
+            ws.column_dimensions[get_column_letter(col)].width = 36
+        changed = 0
+        for row in range(head + 1, ws.max_row + 1):
+            try:
+                url = links.get(int(ws.cell(row, cols["num"]).value))
+            except (TypeError, ValueError):
+                continue
+            cell = ws.cell(row, col)
+            if url and cell.value != url:
+                cell.value = url
+                cell.hyperlink = url
+                cell.style = "Hyperlink"
+                changed += 1
+        if changed:
+            _backup_once()
+            wb.save(config.SOURCE_XLSX)
+        return changed

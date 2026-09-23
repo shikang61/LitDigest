@@ -20,7 +20,7 @@ Stages run in order and are resumable -- each skips papers it already finished:
 import argparse
 import sys
 
-from litdigest import arxiv, config, extract, generate, ingest, llm, store
+from litdigest import arxiv, config, extract, generate, ingest, llm, sheet, store
 
 
 def cmd_status(_args) -> None:
@@ -78,7 +78,8 @@ def main() -> None:
     if a.cmd == "ingest":
         return print(f"ingested {ingest.run()} papers")
     if a.cmd == "match":
-        return print(arxiv.run(force, limit))
+        print(arxiv.run(force, limit))
+        return print(f"{sheet.sync_links()} arXiv links written to the spreadsheet")
     if a.cmd == "fetch":
         return print(extract.run(force, limit))
     if a.cmd == "taxonomy":
@@ -94,6 +95,7 @@ def main() -> None:
             rec["arxiv"] = found
             rec.pop("text", None)
         store.update(a.num, pin)
+        sheet.sync_links()
         return print(f"[{a.num}] pinned to {a.arxiv_id}: {found['title'][:70]}")
     if a.cmd == "warm":
         return print(generate.warm(limit, force))
@@ -104,6 +106,7 @@ def main() -> None:
     if a.cmd == "all":
         print("== ingest");   print(f"ingested {ingest.run()} papers")
         print("== match");    print(arxiv.run(force, limit))
+        print(f"{sheet.sync_links()} arXiv links written to the spreadsheet")
         print("== taxonomy"); llm.taxonomy()
         print("== topics");   print(llm.assign_topics())
         print("\nReady. Start the app with:  ./run.py serve")

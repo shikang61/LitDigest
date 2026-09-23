@@ -149,14 +149,16 @@ app works without it, one click at a time.
 
 ## What syncs back to the spreadsheet
 
-Two things, and nothing else:
+Three things, and nothing else:
 
 | in the app | in the spreadsheet |
 |---|---|
 | the star on a card | the Title cell filled yellow (`FFFFFF00`) |
 | the note box | the Notes column for that row |
+| a paper found on arXiv | its link in an `arXiv` column, added after the last one |
 
-Both are written the moment you make them, matched by the `Num` column. Existing
+Stars and notes are written the moment you make them, and a link as soon as its
+paper is found (or when the app opens), all matched by the `Num` column. Existing
 yellow cells and existing notes are read back in, so the highlighting you already
 did shows up as stars on first run. The first write of each session copies the
 untouched file to `cache/backup/` first.

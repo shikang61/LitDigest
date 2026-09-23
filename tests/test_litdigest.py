@@ -49,6 +49,21 @@ def test_stopwords_excluded_from_overlap():
     assert "theory" in arxiv._content("the theory of the thing")
 
 
+def test_a_search_arxiv_never_answers_is_not_a_missing_paper(monkeypatch):
+    """Every query refused (arXiv's 406) used to come back as match_status "none",
+    which the app shows as "not on arXiv"."""
+    def refused(search, max_results=8):
+        raise OSError("HTTP Error 406: Not Acceptable")
+    monkeypatch.setattr(arxiv, "_query", refused)
+    with pytest.raises(OSError):
+        arxiv.find("Physics-Informed Kolmogorov-Arnold Networks for Grad-Shafranov")
+
+
+def test_a_search_that_answers_with_nothing_is_a_missing_paper(monkeypatch):
+    monkeypatch.setattr(arxiv, "_query", lambda search, max_results=8: [])
+    assert arxiv.find("A paper that is not on arXiv")["match_status"] == "none"
+
+
 # --- the tagged-section format --------------------------------------------
 
 GLANCE = """[CLAIM]
@@ -311,6 +326,51 @@ def test_a_note_cannot_be_written_without_a_notes_column(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "bk")
 
     assert sheet.set_note(1, "a note") is False
+
+
+def _two_papers(tmp_path, monkeypatch):
+    """A sheet with paper 1 found on arXiv and paper 2 not."""
+    from litdigest import config, store
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Num", "Title", "Notes"])
+    ws.append([1, "A found paper", None])
+    ws.append([2, "A missing paper", None])
+    path = tmp_path / "s.xlsx"
+    wb.save(path)
+    monkeypatch.setattr(config, "SOURCE_XLSX", path)
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "bk")
+    monkeypatch.setattr(config, "PAPER_DIR", tmp_path / "papers")
+    (tmp_path / "papers").mkdir()
+    store.save({"num": 1, "arxiv": {"match_status": "ok",
+                                    "abs_url": "http://arxiv.org/abs/2609.23846v1"}})
+    store.save({"num": 2, "arxiv": {"match_status": "none"}})
+    return path
+
+
+def test_a_found_paper_gets_its_link_in_a_new_arxiv_column(tmp_path, monkeypatch):
+    from litdigest import sheet
+    path = _two_papers(tmp_path, monkeypatch)
+
+    assert sheet.sync_links() == 1
+    ws = load_workbook(path).active
+    assert ws.cell(1, 4).value == "arXiv"
+    assert ws.cell(2, 4).value == "https://arxiv.org/abs/2609.23846"
+    assert ws.cell(2, 4).hyperlink.target == "https://arxiv.org/abs/2609.23846"
+    assert ws.cell(3, 4).value is None
+
+
+def test_links_already_in_the_sheet_are_not_saved_again(tmp_path, monkeypatch):
+    """The app syncs every time it opens, so a sync with nothing new must not
+    rewrite the user's file."""
+    from litdigest import sheet
+    path = _two_papers(tmp_path, monkeypatch)
+    sheet.sync_links()
+    before = path.stat().st_mtime_ns
+
+    assert sheet.sync_links() == 0
+    assert path.stat().st_mtime_ns == before
+    assert load_workbook(path).active.max_column == 4
 
 
 # --- the prompts ------------------------------------------------------------

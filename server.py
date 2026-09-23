@@ -170,6 +170,7 @@ def health():
 def papers():
     """Always re-reads the spreadsheet, so rows added since last time show up."""
     ingest.run()
+    _sync_links()
     recs = list(store.all_records())
 
     # a paper with no topic, or one filed under a category that no longer exists,
@@ -186,6 +187,15 @@ def papers():
             "model": config.XAI_MODEL,
             "source": str(config.SOURCE_XLSX),
             "added": len(fresh)}
+
+
+def _sync_links() -> None:
+    """The arXiv column is a convenience: a sheet that cannot be written, open in
+    another app or read-only, must not stop the grid opening or a paper being read."""
+    try:
+        sheet.sync_links()
+    except Exception:
+        pass
 
 
 @app.post("/api/reload")
@@ -213,8 +223,12 @@ def prepare(num: int):
     """Resolve on arXiv and pull the PDF text -- whatever is still missing."""
     rec = _rec(num)
     if rec.get("arxiv", {}).get("match_status") not in config.RESOLVED:
-        found = arxiv.find(rec["title"])
+        try:
+            found = arxiv.find(rec["title"])
+        except Exception as exc:
+            raise HTTPException(502, f"could not reach arXiv's search: {exc}")
         rec = store.update(num, lambda r: r.update(arxiv=found))
+        _sync_links()
     if rec["arxiv"]["match_status"] == "none":
         raise HTTPException(422, "arXiv has no paper under this title")
     if not rec.get("text"):

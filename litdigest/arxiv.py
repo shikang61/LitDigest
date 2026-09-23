@@ -2,14 +2,13 @@
 import re
 import time
 import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from difflib import SequenceMatcher
 
-import requests
-
 from . import config, store
 
-API = "http://export.arxiv.org/api/query"
+API = "https://export.arxiv.org/api/query"
 NS = {"a": "http://www.w3.org/2005/Atom"}
 _last_call = 0.0
 
@@ -39,16 +38,30 @@ def _score(clean: str, candidate: str) -> tuple[float, float]:
     return ratio, overlap
 
 
+def _get(url: str) -> str:
+    """The API's answer at url, raising on an HTTP error.
+
+    Not requests: export.arxiv.org refuses its connections with 406 Not Acceptable,
+    whatever headers they carry, while the standard library and curl get through.
+    Only a response arXiv has cached slips past, so every new title search failed
+    and each new paper was filed as not on arXiv.
+    """
+    req = urllib.request.Request(url, headers={"User-Agent": "LitDigest/1.0"})
+    with urllib.request.urlopen(req, timeout=45) as resp:
+        return resp.read().decode("utf-8")
+
+
 def _query(search: str, max_results: int = 8) -> list[dict]:
     global _last_call
     wait = config.ARXIV_DELAY - (time.time() - _last_call)
     if wait > 0:
         time.sleep(wait)
     url = f"{API}?{urllib.parse.urlencode({'search_query': search, 'max_results': max_results})}"
-    resp = requests.get(url, timeout=45, headers={"User-Agent": "LitDigest/1.0"})
-    _last_call = time.time()
-    resp.raise_for_status()
-    root = ET.fromstring(resp.text)
+    try:
+        text = _get(url)
+    finally:
+        _last_call = time.time()
+    root = ET.fromstring(text)
 
     out = []
     for e in root.findall("a:entry", NS):
@@ -89,11 +102,14 @@ def find(title: str) -> dict:
         attempts.append(" AND ".join(f"all:{w}" for w in rare))
 
     best, best_score, best_overlap = None, 0.0, 0.0
+    answered, error = False, None
     for search in attempts:
         try:
             entries = _query(search)
-        except Exception:
+        except Exception as exc:
+            error = exc
             continue
+        answered = True
         for e in entries:
             score, overlap = _score(clean, e["title"])
             # a truncated sheet title should still match its full arXiv title
@@ -103,6 +119,11 @@ def find(title: str) -> dict:
                 best, best_score, best_overlap = e, score, overlap
         if best_score >= config.MATCH_STRONG:
             break
+
+    if not answered:
+        # arXiv never answered, which says nothing about whether it has the paper;
+        # recording "none" would file it as not on arXiv
+        raise error
 
     accepted = best_score >= config.MATCH_FUZZY or best_overlap >= config.MATCH_WORDS
     if best is None or not accepted:
@@ -119,10 +140,7 @@ def find(title: str) -> dict:
 
 def fetch_by_id(arxiv_id: str) -> dict:
     """Take an arXiv id as given, for a paper whose title search cannot find it."""
-    resp = requests.get(f"{API}?id_list={urllib.parse.quote(arxiv_id)}",
-                        timeout=45, headers={"User-Agent": "LitDigest/1.0"})
-    resp.raise_for_status()
-    root = ET.fromstring(resp.text)
+    root = ET.fromstring(_get(f"{API}?id_list={urllib.parse.quote(arxiv_id)}"))
     entry = root.find("a:entry", NS)
     if entry is None:
         raise SystemExit(f"arXiv has no entry {arxiv_id}")
