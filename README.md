@@ -76,8 +76,10 @@ same launcher from a terminal works, because your terminal already holds that
 permission, which makes it a confusing thing to debug.
 
 So the app checks whether it can actually read `launch.sh`, and if it cannot, it
-hands the job to Terminal, which can. Everything works; a Terminal window appears
-alongside the browser and has to stay open while you use the app. Keeping the
+hands the job to iTerm, or to Terminal when iTerm is not installed. A window
+flashes up and closes once the server is running. That terminal needs the folder
+permission too: if it fails with `Operation not permitted`, allow it under System
+Settings → Privacy & Security → Files & Folders (or Full Disk Access). Keeping the
 project anywhere else (`~/LitDigest`, say) avoids the window entirely.
 
 `cache/app.log` records what the app did on its last direct launch.
